@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Token Live Activity</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap');
+:root{--bg:#090c10;--surface:#0e1117;--border:#1e2530;--buy:#00ff88;--sell:#ff3b6b;--accent:#00c2ff;--text:#e2e8f0;--muted:#4a5568;--card:#111620}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'Space Mono',monospace;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,194,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,194,255,.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+.wrap{position:relative;z-index:1;max-width:900px;margin:0 auto;padding:18px 14px}
+.live-pill{display:inline-flex;align-items:center;gap:6px;background:rgba(255,59,107,.12);border:1px solid rgba(255,59,107,.3);color:var(--sell);font-size:10px;font-weight:700;letter-spacing:2px;padding:4px 10px;border-radius:2px;margin-bottom:10px}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--sell);animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.title{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#fff;line-height:1.2}
+.caddr{font-size:11px;color:var(--muted);margin-top:5px;word-break:break-all}
+.caddr span{color:var(--accent);cursor:pointer}
+.ws-badge{display:inline-block;font-size:9px;padding:2px 8px;border-radius:2px;margin-top:5px;letter-spacing:1px;border:1px solid}
+.ws-badge.connecting{color:#ffd166;border-color:rgba(255,209,102,.3);background:rgba(255,209,102,.08)}
+.ws-badge.live{color:var(--buy);border-color:rgba(0,255,136,.3);background:rgba(0,255,136,.08)}
+.ws-badge.poll{color:var(--accent);border-color:rgba(0,194,255,.3);background:rgba(0,194,255,.08)}
+.topbar{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px}
+.clear-btn{font-size:10px;font-family:'Space Mono',monospace;background:rgba(255,59,107,.1);border:1px solid rgba(255,59,107,.3);color:var(--sell);padding:5px 10px;border-radius:3px;cursor:pointer;letter-spacing:1px;margin-top:4px}
+.clear-btn:hover{background:rgba(255,59,107,.2)}
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+.pill{background:var(--card);border:1px solid var(--border);padding:7px 13px;border-radius:4px;font-size:11px;color:var(--muted);display:flex;align-items:center;gap:7px}
+.pill strong{color:var(--text);font-size:13px}
+.pill.b strong{color:var(--buy)}
+.pill.s strong{color:var(--sell)}
+.links{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.lnk{display:inline-flex;align-items:center;gap:5px;background:var(--card);border:1px solid var(--border);color:var(--muted);font-size:11px;padding:6px 12px;border-radius:3px;text-decoration:none;transition:all .15s;font-family:'Space Mono',monospace}
+.lnk:hover{border-color:var(--accent);color:var(--accent)}
+.tbl-wrap{background:var(--card);border:1px solid var(--border);border-radius:6px;overflow:hidden}
+.tbl-head{display:grid;grid-template-columns:34px minmax(0,1fr) 54px 90px 72px 52px;padding:9px 14px;background:var(--surface);border-bottom:1px solid var(--border);font-size:10px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;gap:6px}
+.tbl-body{max-height:70vh;overflow-y:auto;display:flex;flex-direction:column-reverse}
+.tbl-body::-webkit-scrollbar{width:3px}
+.tbl-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.row{display:grid;grid-template-columns:34px minmax(0,1fr) 54px 90px 72px 52px;padding:10px 14px;border-bottom:1px solid rgba(30,37,48,.7);font-size:11px;gap:6px;align-items:center}
+.row.new{animation:flash .8s ease forwards}
+@keyframes flash{0%{background:rgba(0,194,255,.14)}100%{background:transparent}}
+.row:hover{background:rgba(255,255,255,.02)}
+.rn{color:var(--muted);font-size:10px;text-align:center}
+.ra{color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;font-size:11px}
+.ra:hover{text-decoration:underline}
+.rt{font-weight:700;font-size:11px}
+.rt.BUY{color:var(--buy)}
+.rt.SELL{color:var(--sell)}
+.ramt{color:var(--text);text-align:right}
+.rusd{color:#ffd166;text-align:right}
+.rtime{color:var(--muted);text-align:right;font-size:10px;font-variant-numeric:tabular-nums}
+.empty{padding:44px 20px;text-align:center;color:var(--muted);font-size:12px;line-height:2.2}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:7px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:20px;right:20px;background:var(--card);border:1px solid var(--border);padding:11px 16px;border-radius:4px;font-size:11px;z-index:999;opacity:0;transform:translateY(8px);transition:all .2s;pointer-events:none}
+.toast.show{opacity:1;transform:translateY(0)}
+.setup{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:32px;text-align:center;margin-top:60px}
+.setup h2{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#fff;margin-bottom:8px}
+.setup p{font-size:12px;color:var(--muted);margin-bottom:20px;line-height:1.7}
+.setup-supabase{background:rgba(0,194,255,.06);border:1px solid rgba(0,194,255,.2);border-radius:6px;padding:20px;margin-bottom:18px;text-align:left}
+.setup-supabase h3{font-size:11px;color:var(--accent);letter-spacing:1px;margin-bottom:12px}
+.setup-label{font-size:10px;color:var(--muted);margin-bottom:4px;letter-spacing:1px;text-transform:uppercase}
+.inp{width:100%;max-width:460px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:'Space Mono',monospace;font-size:12px;padding:11px 14px;border-radius:4px;outline:none;margin-bottom:10px;display:block;margin-left:auto;margin-right:auto}
+.inp:focus{border-color:var(--accent)}
+.inp-full{width:100%;max-width:100%;margin:0 0 10px 0}
+.btn{background:var(--accent);color:#000;font-family:'Space Mono',monospace;font-size:12px;font-weight:700;padding:11px 26px;border:none;border-radius:4px;cursor:pointer;letter-spacing:1px;text-transform:uppercase}
+.db-badge{display:inline-flex;align-items:center;gap:5px;font-size:9px;padding:2px 8px;border-radius:2px;margin-top:5px;margin-left:6px;letter-spacing:1px;border:1px solid;color:#a78bfa;border-color:rgba(167,139,250,.3);background:rgba(167,139,250,.08);vertical-align:middle}
+@media(max-width:540px){
+  .tbl-head,.row{grid-template-columns:26px minmax(0,1fr) 44px 76px 60px 44px;padding:8px 8px;gap:4px;font-size:10px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="setup-screen" class="setup" style="display:none">
+    <h2>Token Live Activity</h2>
+    <p>Masukkan contract address token yang ingin dipantau.<br>Data tersimpan global — semua device bisa lihat activity yang sama 🌐</p>
+    <input class="inp" id="inp-contract" placeholder="0x... contract address"/>
+    <button class="btn" onclick="startFromForm()">▶ PANTAU</button>
+  </div>
+
+  <div id="live-screen" style="display:none">
+    <div class="live-pill"><span class="dot"></span> LIVE</div>
+    <div class="topbar">
+      <div>
+        <div class="title" id="ttitle">─</div>
+        <div class="caddr">Contract: <span id="caddr" onclick="copyContract()">─</span></div>
+        <span id="ws-badge" class="ws-badge connecting">⟳ CONNECTING</span>
+        <span id="db-badge" class="db-badge">🌐 GLOBAL</span>
+      </div>
+      <button class="clear-btn" onclick="clearData()">🗑 CLEAR</button>
+    </div>
+    <div class="stats">
+      <div class="pill">Total TX <strong id="s-total">0</strong></div>
+      <div class="pill b">Buy <strong id="s-buy">0</strong></div>
+      <div class="pill s">Sell <strong id="s-sell">0</strong></div>
+      <div class="pill">Block <strong id="s-block">─</strong></div>
+      <div class="pill">Price <strong id="s-price">─</strong></div>
+    </div>
+    <div class="links" id="links"></div>
+    <div class="tbl-wrap">
+      <div class="tbl-head">
+        <span>#</span><span>ADDRESS</span><span>TYPE</span>
+        <span style="text-align:right">AMOUNT</span>
+        <span style="text-align:right">USD</span>
+        <span style="text-align:right">TIME</span>
+      </div>
+      <div class="tbl-body" id="tbl-body">
+        <div class="empty" id="empty-msg"><span class="spin"></span>Memuat data global...</div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────
+// Supabase credentials disimpan di localStorage agar tidak perlu input ulang
+const CRED_KEY = "tok_sb_creds";
+// ── SUPABASE CREDENTIALS (HARDCODED) ─────────────────────────
+const SB_URL = "https://sjgzbdragnsgmgexpftt.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqZ3piZHJhZ25zZ21nZXhwZnR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5NjA2ODEsImV4cCI6MjA4ODUzNjY4MX0.eMsvGWIQBfpQELcEl3aXOevQp6-cR9wjCy7Qq1Ga_5s";
+
+const WS_LIST   = ["wss://base-rpc.publicnode.com","wss://base.llamarpc.com"];
+const HTTP_LIST = [
+  "https://base-rpc.publicnode.com","https://base.llamarpc.com",
+  "https://mainnet.base.org","https://1rpc.io/base",
+  "https://base-mainnet.g.alchemy.com/v2/qjHYRYDCGd3pSsBgMdRPI",
+];
+const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+const NULL_ADDR = "0x0000000000000000000000000000000000000000";
+const TABLE = "token_activity"; // nama tabel Supabase
+
+// ── STATE ─────────────────────────────────────────────────────
+let contract = "";
+let ws = null, wsIdx = 0, httpIdx = 0, pollTimer = null, wsAlive = false;
+let seenTx = new Set(), rows = [], nBuy = 0, nSell = 0;
+let tokenPrice = null, lastBlock = 0, lastPolledBlock = 0;
+let poolAddr = null;
+let knownBuyers = new Set();    // wallet addresses yang pernah BUY (untuk SELL detection)
+
+// ── SUPABASE HELPERS ──────────────────────────────────────────
+// Semua operasi DB lewat Supabase REST API langsung (tanpa library)
+
+async function sbFetch(path, opts={}){
+  const res = await fetch(SB_URL+"/rest/v1/"+path, {
+    ...opts,
+    headers:{
+      "apikey": SB_KEY,
+      "Authorization": "Bearer "+SB_KEY,
+      "Content-Type": "application/json",
+      "Prefer": opts.prefer||"",
+      ...(opts.headers||{})
+    }
+  });
+  if(!res.ok){
+    const err = await res.text();
+    throw new Error("SB "+res.status+": "+err);
+  }
+  const ct = res.headers.get("content-type")||"";
+  if(ct.includes("json")) return res.json();
+  return null;
+}
+
+// Ambil semua row untuk contract ini dari Supabase
+async function dbLoadRows(){
+  try{
+    const data = await sbFetch(
+      TABLE+"?contract=eq."+encodeURIComponent(contract)+"&order=block_num.asc,tx_hash.asc",
+      {method:"GET", headers:{"Accept":"application/json"}}
+    );
+    return data||[];
+  }catch(e){ console.error("dbLoad err:",e); return []; }
+}
+
+// Insert 1 row baru ke Supabase
+async function dbInsertRow(row){
+  try{
+    await sbFetch(TABLE, {
+      method:"POST",
+      prefer:"resolution=ignore-duplicates",
+      body: JSON.stringify({
+        contract:  contract,
+        tx_hash:   row.txHash,
+        type:      row.type,
+        display_addr: row.displayAddr,
+        amt:       row.amt,
+        ts:        row.ts,
+        block_num: row.blockNum
+      })
+    });
+  }catch(e){ console.error("dbInsert err:",e); }
+}
+
+// Hapus semua row contract ini dari Supabase
+async function dbClearRows(){
+  try{
+    await sbFetch(TABLE+"?contract=eq."+encodeURIComponent(contract), {method:"DELETE"});
+  }catch(e){ console.error("dbClear err:",e); }
+}
+
+// Supabase Realtime: subscribe ke INSERT baru via WebSocket
+let sbRtWs = null;
+function sbRealtimeConnect(){
+  if(!SB_URL||!SB_KEY) return;
+  try{
+    const wsUrl = SB_URL.replace("https://","wss://").replace("http://","ws://")
+                       +"/realtime/v1/websocket?apikey="+SB_KEY+"&vsn=1.0.0";
+    sbRtWs = new WebSocket(wsUrl);
+    sbRtWs.onopen = ()=>{
+      // Join channel: tabel token_activity, filter contract
+      sbRtWs.send(JSON.stringify({
+        topic: "realtime:public:"+TABLE+":contract=eq."+contract,
+        event: "phx_join",
+        payload: {},
+        ref: "1"
+      }));
+    };
+    sbRtWs.onmessage = (ev)=>{
+      try{
+        const msg = JSON.parse(ev.data);
+        if(msg.event==="INSERT" && msg.payload&&msg.payload.record){
+          const rec = msg.payload.record;
+          // row sudah diinsert oleh tab/device lain, render ke UI jika belum ada
+          if(!seenTx.has(rec.tx_hash)){
+            const row = {
+              txHash: rec.tx_hash,
+              type: rec.type,
+              displayAddr: rec.display_addr,
+              amt: parseFloat(rec.amt),
+              ts: parseInt(rec.ts),
+              blockNum: parseInt(rec.block_num)
+            };
+            seenTx.add(row.txHash);
+            rows.push(row);
+            knownBuyers.add(row.displayAddr);
+            if(row.type==="BUY") nBuy++; else nSell++;
+            updateStatsDom();
+            appendRow(row, true);
+          }
+        }
+      }catch(e){}
+    };
+    sbRtWs.onclose = ()=>{ setTimeout(sbRealtimeConnect, 4000); };
+    sbRtWs.onerror = ()=>{ sbRtWs.close(); };
+  }catch(e){}
+}
+
+// ── SETUP ─────────────────────────────────────────────────────
+async function startFromForm(){
+  const ca = document.getElementById("inp-contract").value.trim();
+  if(!ca.match(/^0x[a-f0-9]{40}$/i)){ showToast("❌ Contract address tidak valid"); return; }
+  contract = ca.toLowerCase();
+  await startMonitor();
+}
+
+async function startMonitor(){
+  document.getElementById("setup-screen").style.display="none";
+  document.getElementById("live-screen").style.display="block";
+  document.getElementById("caddr").textContent = contract;
+  document.getElementById("ttitle").textContent = "─";
+
+  setBadge("connecting","⟳ CONNECTING");
+  showToast("🌐 Memuat data global...");
+
+  // Load existing rows dari Supabase
+  const dbRows = await dbLoadRows();
+  if(dbRows.length){
+    for(const rec of dbRows){
+      const row = {
+        txHash: rec.tx_hash,
+        type: rec.type,
+        displayAddr: rec.display_addr,
+        amt: parseFloat(rec.amt),
+        ts: parseInt(rec.ts),
+        blockNum: parseInt(rec.block_num)
+      };
+      seenTx.add(row.txHash);
+      rows.push(row);
+      knownBuyers.add(row.displayAddr);
+      if(row.type==="BUY") nBuy++; else nSell++;
+    }
+    rebuildTable();
+    updateStatsDom();
+    showToast("✅ "+dbRows.length+" transaksi dimuat dari cloud");
+  } else {
+    setEmpty("Menunggu transaksi pertama...");
+  }
+
+  fetchTokenName();
+  fetchPrice();
+  setInterval(fetchPrice, 15000);
+  setInterval(updateTimers, 1000);
+  buildLinks();
+  connectWs();
+  startPolling();
+  sbRealtimeConnect(); // subscribe Supabase realtime
+}
+
+// ── URL PARAMS ────────────────────────────────────────────────
+function urlParams(){
+  const p = new URLSearchParams(location.search);
+  return { contract: p.get("contract"), name: p.get("name"), creator: p.get("creator") };
+}
+
+// ── RPC ───────────────────────────────────────────────────────
+async function httpCall(method, params){
+  for(let i=0;i<HTTP_LIST.length;i++){
+    const idx = (httpIdx+i)%HTTP_LIST.length;
+    try{
+      const r = await fetch(HTTP_LIST[idx],{
+        method:"POST",
+        body: JSON.stringify({jsonrpc:"2.0",id:1,method,params}),
+        signal: AbortSignal.timeout(6000)
+      });
+      if(!r.ok) continue;
+      const j = await r.json();
+      return j.result;
+    }catch(e){}
+  }
+  return null;
+}
+
+// ── TOKEN NAME ────────────────────────────────────────────────
+async function fetchTokenName(){
+  try{
+    const code = await httpCall("eth_getCode",[contract,"latest"]);
+    if(code&&code!=="0x"){
+      document.getElementById("ttitle").textContent = "LIVE";
+      setBadge("live","⚡ LIVE");
+    }
+  }catch(e){}
+}
+
+// ── WEBSOCKET RPC ─────────────────────────────────────────────
+function connectWs(){
+  if(ws) return;
+  wsIdx = (wsIdx+1) % WS_LIST.length;
+  ws = new WebSocket(WS_LIST[wsIdx]);
+  ws.onopen = ()=>{
+    wsAlive = true;
+    setBadge("live","⚡ LIVE · "+WS_LIST[wsIdx].replace("wss://",""));
+    ws.send(JSON.stringify({
+      jsonrpc:"2.0",id:1,method:"eth_subscribe",
+      params:["logs",{address:[contract],topics:[TRANSFER_TOPIC]}]
+    }));
+  };
+  ws.onmessage = async(ev)=>{
+    try{
+      const j = JSON.parse(ev.data);
+      if(j.params&&j.params.result){
+        const log = j.params.result;
+        const blk = parseInt(log.blockNumber,16);
+        if(blk>lastBlock){ lastBlock=blk; document.getElementById("s-block").textContent=blk; }
+        bufferLog(log);
+      }
+    }catch(e){}
+  };
+  ws.onerror = ()=>{ wsAlive=false; };
+  ws.onclose = ()=>{ wsAlive=false; ws=null; setTimeout(connectWs,3000); };
+}
+
+const wsBuf={}, wsBufTimer={};
+function bufferLog(log){
+  const tx = log.transactionHash;
+  if(!wsBuf[tx]) wsBuf[tx]=[];
+  wsBuf[tx].push(log);
+  if(wsBufTimer[tx]) clearTimeout(wsBufTimer[tx]);
+  wsBufTimer[tx] = setTimeout(()=>{
+    const logs = wsBuf[tx]||[];
+    delete wsBuf[tx]; delete wsBufTimer[tx];
+    processTx(logs, true);
+  }, 300);
+}
+
+// ── POLLING ───────────────────────────────────────────────────
+function startPolling(){
+  if(pollTimer) return;
+  pollTimer = setInterval(async()=>{
+    try{
+      const bn = await httpCall("eth_blockNumber",[]);
+      if(!bn) return;
+      const num = parseInt(bn,16);
+      if(num===lastPolledBlock) return;
+      const from = lastPolledBlock||num;
+      lastPolledBlock = num;
+      if(num>lastBlock){ lastBlock=num; document.getElementById("s-block").textContent=num; }
+      if(!wsAlive) setBadge("poll","🔄 Polling 2.5s");
+      const logs = await httpCall("eth_getLogs",[{
+        address:contract, topics:[TRANSFER_TOPIC],
+        fromBlock:"0x"+from.toString(16), toBlock:"0x"+num.toString(16)
+      }]);
+      if(logs&&logs.length){
+        const byTx={};
+        for(const l of logs){ if(!byTx[l.transactionHash]) byTx[l.transactionHash]=[]; byTx[l.transactionHash].push(l); }
+        for(const tx of Object.keys(byTx)) processTx(byTx[tx], true);
+      }
+    }catch(e){}
+  }, 2500);
+}
+
+// ── HELPERS ───────────────────────────────────────────────────
+function addr1(l){ return ("0x"+l.topics[1].slice(-40)).toLowerCase(); }
+function addr2(l){ return ("0x"+l.topics[2].slice(-40)).toLowerCase(); }
+function floatAmt(l){
+  try{ return parseInt(l.data,16)/1e18; }catch(e){ return 0; }
+}
+
+// ── PROCESS TX ────────────────────────────────────────────────
+// BUY/SELL detection TIDAK berubah sama sekali.
+// Yang berubah HANYA: setelah row dibuat, simpan ke Supabase (global).
+async function processTx(allLogs, isNew){
+  const logs = allLogs.filter(l=>l.topics&&l.topics.length>=3&&l.topics[0]===TRANSFER_TOPIC);
+  if(!logs.length) return;
+  const txHash = logs[0].transactionHash.toLowerCase();
+  if(seenTx.has(txHash)) return;
+
+  // Discover poolAddr dari mint log (FROM=null)
+  if(!poolAddr){
+    const initLog = logs.find(l=>addr1(l)===NULL_ADDR);
+    if(initLog) poolAddr = addr2(initLog);
+  }
+
+  // ─── BUY/SELL DETECTION (TIDAK BERUBAH) ──────────────────────────────
+  const sellLog = logs.find(l => knownBuyers.has(addr1(l)));
+  let type, chosenLog, walletAddr;
+
+  if(sellLog){
+    // SELL: FROM = wallet yang pernah beli
+    type = "SELL";
+    chosenLog = sellLog;
+    walletAddr = addr1(chosenLog);
+  } else {
+    // BUY: cari TO yang merupakan wallet user akhir
+    type = "BUY";
+
+    // Tentukan hook = FROM yang paling sering muncul
+    const fromCounts = {};
+    for(const log of logs){
+      const f = addr1(log);
+      fromCounts[f] = (fromCounts[f]||0)+1;
+    }
+    const hookAddr = Object.keys(fromCounts).reduce((a,b)=>fromCounts[a]>fromCounts[b]?a:b);
+
+    // Cari pool/router = FROM yang mengirim ke hook
+    let poolOrRouter = null;
+    for(const log of logs){
+      if(addr1(log)!==hookAddr && addr2(log)===hookAddr){ poolOrRouter=addr1(log); break; }
+    }
+
+    // TO dengan amount terbesar yang bukan hook/pool/null
+    let maxAmt=0, maxLog=null;
+    for(const log of logs){
+      const to = addr2(log);
+      const amt = floatAmt(log);
+      if(to===hookAddr) continue;
+      if(poolOrRouter && to===poolOrRouter) continue;
+      if(to===NULL_ADDR) continue;
+      if(amt>maxAmt){ maxAmt=amt; maxLog=log; }
+    }
+
+    chosenLog = maxLog || logs[0];
+    walletAddr = addr2(chosenLog);
+  }
+
+  // Simpan ke knownBuyers (untuk SELL detection berikutnya)
+  knownBuyers.add(walletAddr);
+
+  seenTx.add(txHash);
+  const amt = floatAmt(chosenLog);
+  const blockNum = parseInt(chosenLog.blockNumber,16);
+
+  let ts = Math.floor(Date.now()/1000);
+  if(!isNew){
+    try{
+      const b = await httpCall("eth_getBlockByNumber",[chosenLog.blockNumber,false]);
+      if(b) ts = parseInt(b.timestamp,16);
+    }catch(e){}
+  }
+
+  const row = {txHash, type, displayAddr:walletAddr, amt, ts, blockNum};
+  rows.push(row);
+  if(type==="BUY") nBuy++; else nSell++;
+  updateStatsDom();
+  appendRow(row, isNew);
+
+  // ── SIMPAN KE SUPABASE (GLOBAL) ───────────────────────────────
+  // Ini satu-satunya penambahan — row yang dideteksi disimpan ke cloud
+  // sehingga semua device/HP lain bisa lihat secara realtime
+  await dbInsertRow(row);
+}
+
+// ── RENDER ────────────────────────────────────────────────────
+function appendRow(row, isNew){
+  const body = document.getElementById("tbl-body");
+  const empty = document.getElementById("empty-msg");
+  if(empty) empty.remove();
+  const el = document.createElement("div");
+  el.className = "row"+(isNew?" new":"");
+  el.id = "row-"+row.txHash;
+  el.innerHTML = `
+    <span class="rn">${rows.length}</span>
+    <span class="ra" title="${row.displayAddr}" onclick="openAddr('${row.displayAddr}')">${shorten(row.displayAddr)}</span>
+    <span class="rt ${row.type}">${row.type}</span>
+    <span class="ramt">${fmtAmt(row.amt)}</span>
+    <span class="rusd" data-amt="${row.amt}">${fmtUsd(row.amt)}</span>
+    <span class="rtime" data-ts="${row.ts}">${fmtTime(row.ts)}</span>
+  `;
+  body.appendChild(el);
+}
+
+function rebuildTable(){
+  const body = document.getElementById("tbl-body");
+  body.innerHTML = "";
+  for(const row of rows) appendRow(row, false);
+}
+
+function setEmpty(msg){
+  const body = document.getElementById("tbl-body");
+  if(!document.getElementById("empty-msg"))
+    body.innerHTML = `<div class="empty" id="empty-msg">${msg}</div>`;
+}
+
+function updateStatsDom(){
+  document.getElementById("s-total").textContent = rows.length;
+  document.getElementById("s-buy").textContent = nBuy;
+  document.getElementById("s-sell").textContent = nSell;
+}
+
+function updateTimers(){
+  document.querySelectorAll(".rtime[data-ts]").forEach(el=>{
+    el.textContent = fmtTime(parseInt(el.dataset.ts));
+  });
+}
+
+function updateUsd(){
+  document.querySelectorAll(".rusd[data-amt]").forEach(el=>{
+    el.textContent = fmtUsd(parseFloat(el.dataset.amt));
+  });
+}
+
+// ── CLEAR ─────────────────────────────────────────────────────
+async function clearData(){
+  if(!confirm("Hapus semua data? (akan hapus dari cloud juga)")) return;
+  await dbClearRows();
+  seenTx.clear(); rows=[]; nBuy=0; nSell=0;
+  poolAddr=null; knownBuyers.clear();
+  document.getElementById("tbl-body").innerHTML='<div class="empty" id="empty-msg">Menunggu transaksi...</div>';
+  updateStatsDom();
+  showToast("🗑 Data dihapus dari cloud");
+}
+
+// ── PRICE ─────────────────────────────────────────────────────
+async function fetchPrice(){
+  try{
+    const r = await fetch("https://api.dexscreener.com/latest/dex/tokens/"+contract,{signal:AbortSignal.timeout(5000)});
+    const j = await r.json();
+    const pairs = j?.pairs;
+    if(pairs&&pairs.length){
+      pairs.sort((a,b)=>(b.liquidity?.usd||0)-(a.liquidity?.usd||0));
+      const p = parseFloat(pairs[0].priceUsd);
+      if(!isNaN(p)&&p>0){
+        tokenPrice=p;
+        document.getElementById("s-price").textContent=fmtPrice(p);
+        updateUsd();
+      }
+    }
+  }catch(e){}
+}
+
+// ── FORMAT ────────────────────────────────────────────────────
+function fmtAmt(v){
+  if(!v) return"—";
+  if(v>=1e9) return(v/1e9).toFixed(2)+"B";
+  if(v>=1e6) return(v/1e6).toFixed(2)+"M";
+  if(v>=1000) return(v/1000).toFixed(2)+"k";
+  return v.toFixed(4);
+}
+function fmtUsd(amt){
+  if(tokenPrice===null||!amt) return"—";
+  const u=amt*tokenPrice;
+  if(u>=1000) return"$"+(u/1000).toFixed(1)+"k";
+  if(u>=1) return"$"+u.toFixed(2);
+  return"$"+u.toPrecision(3);
+}
+function fmtPrice(p){
+  if(p>=1) return"$"+p.toFixed(4);
+  if(p>=0.0001) return"$"+p.toPrecision(4);
+  return"$"+p.toExponential(2);
+}
+function fmtTime(ts){
+  const d=Math.floor(Date.now()/1000)-ts;
+  if(d<0) return"just now";
+  if(d<60) return d+"s";
+  if(d<3600){ const m=Math.floor(d/60),s=d%60; return m+"m"+(s?" "+s+"s":""); }
+  if(d<86400){ const h=Math.floor(d/3600),m=Math.floor((d%3600)/60); return h+"h"+(m?" "+m+"m":""); }
+  return Math.floor(d/86400)+"d";
+}
+function shorten(a){ return a?a.slice(0,6)+"..."+a.slice(-4):"—"; }
+function openAddr(a){ window.open("https://basescan.org/address/"+a,"_blank"); }
+function copyContract(){ navigator.clipboard.writeText(contract).then(()=>showToast("✅ Contract disalin!")); }
+function showToast(m){
+  const t=document.getElementById("toast");
+  t.textContent=m; t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"),2500);
+}
+function setBadge(cls,txt){
+  const b=document.getElementById("ws-badge");
+  b.className="ws-badge "+cls; b.textContent=txt;
+}
+function toBaseApp(addr){
+  const net=new TextEncoder().encode("networks/base-mainnet");
+  const ab=new TextEncoder().encode(addr.toLowerCase());
+  const inner=new Uint8Array([0x0a,net.length,...net,0x12,ab.length,...ab]);
+  const mid=new Uint8Array([0x0a,inner.length,...inner]);
+  const out=new Uint8Array([0x12,mid.length,...mid]);
+  return"https://base.app/content/"+btoa(String.fromCharCode(...out)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+}
+function buildLinks(creator){
+  document.getElementById("links").innerHTML=`
+    <a class="lnk" href="https://zora.co/coin/base:${contract}" target="_blank">🟣 Zora</a>
+    <a class="lnk" href="${toBaseApp(contract)}" target="_blank">🔵 Base.app</a>
+    <a class="lnk" href="https://basescan.org/token/${contract}" target="_blank">🔍 Basescan</a>
+    <a class="lnk" href="https://dexscreener.com/base/${contract}" target="_blank">📈 DexScreener</a>
+  `;
+}
+
+// ── INIT ──────────────────────────────────────────────────────
+// Cek URL params
+const p = urlParams();
+if(p.contract && p.contract.match(/^0x[a-f0-9]{40}$/i)){
+  contract = p.contract.toLowerCase();
+  if(p.name) setTimeout(()=>{ document.getElementById("ttitle").textContent=p.name; },100);
+  buildLinks(p.creator);
+  // Cek apakah credentials sudah tersimpan
+  try{
+    const saved = JSON.parse(localStorage.getItem(CRED_KEY)||"{}");
+    document.getElementById("setup-screen").style.display="none";
+      document.getElementById("live-screen").style.display="block";
+      document.getElementById("caddr").textContent=contract;
+      startMonitor();
+  }catch(e){
+    document.getElementById("inp-contract").value=p.contract;
+    document.getElementById("setup-screen").style.display="block";
+  }
+} else {
+  document.getElementById("setup-screen").style.display="block";
+}
+</script>
+</body>
+</html>
