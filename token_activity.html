@@ -386,7 +386,7 @@ async function processTx(allLogs, isNew){
   if(!valid.length) return;
 
   // ── DETEKSI BUY/SELL ─────────────────────────────────────────
-  // Aturan (TIDAK BERUBAH):
+  // Aturan ORIGINAL (TIDAK BERUBAH):
   //   SELL: ada log dengan FROM = knownBuyer
   //   BUY:  tidak ada log dengan FROM = knownBuyer
   const sellLog = valid.find(l => knownBuyers.has(addr1(l)));
@@ -400,23 +400,27 @@ async function processTx(allLogs, isNew){
     chosenLog = (poolAddr && valid.find(l=>addr1(l)===poolAddr)) || valid[0];
   }
 
-  // ── DISPLAY ADDRESS (HANYA UNTUK TAMPILAN WEB) ───────────────
-  // LOGIKA BARU:
-  // BUY: TO address dari log (addr2) = wallet yang menerima token pertama kali
-  // SELL: gunakan address yang sama dengan BUY pertama kali (dari firstBuyerAddresses)
+  // ── MANIPULASI TAMPILAN ADDRESS DI UI ───────────────
+  // TUJUAN: Tampilkan TO address dari BUY pertama untuk SEMUA transaksi
+  // - Ambil TO dari log pertama (valid[0]) = address buyer pertama kali
+  // - Gunakan untuk BUY & SELL = tampilan konsisten
   let displayAddr;
+  
+  // Ambil TO address dari log pertama yang valid (= wallet buyer pertama)
+  const firstBuyerToAddr = addr2(valid[0]).toLowerCase();
+  
+  // Catat TO address ini untuk kontrak (untuk SELL nanti)
+  if(!firstBuyerAddresses.has(contract)){
+    firstBuyerAddresses.set(contract, firstBuyerToAddr);
+  }
+  
+  // Gunakan address yang sama untuk BUY & SELL
+  displayAddr = firstBuyerAddresses.get(contract);
+  
+  // ✅ Tetap track knownBuyers untuk deteksi BUY/SELL (JANGAN BERUBAH!)
   if(type==="BUY"){
-    // Untuk BUY: gunakan TO dari log (wallet yang menerima token)
-    displayAddr = addr2(chosenLog).toLowerCase();
-    knownBuyers.add(displayAddr);
-    // Catat sebagai "first buyer address" untuk wallet ini
-    if(!firstBuyerAddresses.has(displayAddr)){
-      firstBuyerAddresses.set(displayAddr, displayAddr);
-    }
-  } else {
-    // Untuk SELL: gunakan first buyer address yang disimpan saat BUY
-    const seller = addr1(chosenLog).toLowerCase();
-    displayAddr = firstBuyerAddresses.get(seller) || seller;
+    const toAddr = addr2(chosenLog).toLowerCase();
+    knownBuyers.add(toAddr);
   }
 
   seenTx.add(txHash);
