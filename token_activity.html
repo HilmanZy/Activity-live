@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Token Live Activity</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap');
+  :root {
+    --bg:#090c10; --surface:#0e1117; --border:#1e2530;
+    --buy:#00ff88; --sell:#ff3b6b; --accent:#00c2ff;
+    --text:#e2e8f0; --muted:#4a5568; --card:#111620;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:'Space Mono',monospace;min-height:100vh;overflow-x:hidden}
+  body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,194,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,194,255,.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+  .container{position:relative;z-index:1;max-width:900px;margin:0 auto;padding:20px 14px}
+  .label-live{display:inline-flex;align-items:center;gap:6px;background:rgba(255,59,107,.12);border:1px solid rgba(255,59,107,.3);color:var(--sell);font-size:10px;font-weight:700;letter-spacing:2px;padding:4px 10px;border-radius:2px;margin-bottom:10px;text-transform:uppercase}
+  .pulse-dot{width:6px;height:6px;border-radius:50%;background:var(--sell);animation:pulse 1.2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+  .page-title{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#fff;letter-spacing:-.5px;line-height:1.2}
+  .contract-addr{font-size:11px;color:var(--muted);margin-top:5px;word-break:break-all}
+  .contract-addr span{color:var(--accent);cursor:pointer}
+  .rpc-badge{display:inline-block;font-size:9px;padding:2px 7px;border-radius:2px;margin-top:5px;letter-spacing:1px}
+  .rpc-badge.ok{background:rgba(0,255,136,.1);color:var(--buy);border:1px solid rgba(0,255,136,.2)}
+  .rpc-badge.err{background:rgba(255,59,107,.1);color:var(--sell);border:1px solid rgba(255,59,107,.2)}
+  .status-bar{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
+  .stat-pill{background:var(--card);border:1px solid var(--border);padding:7px 13px;border-radius:4px;font-size:11px;color:var(--muted);display:flex;align-items:center;gap:7px}
+  .stat-pill strong{color:var(--text);font-size:13px}
+  .stat-pill.buy-stat strong{color:var(--buy)}
+  .stat-pill.sell-stat strong{color:var(--sell)}
+  .links-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+  .ext-link{display:inline-flex;align-items:center;gap:5px;background:var(--card);border:1px solid var(--border);color:var(--muted);font-size:11px;padding:6px 12px;border-radius:3px;text-decoration:none;transition:all .15s;font-family:'Space Mono',monospace}
+  .ext-link:hover{border-color:var(--accent);color:var(--accent)}
+  /* Table */
+  .activity-wrap{background:var(--card);border:1px solid var(--border);border-radius:6px;overflow:hidden}
+  .table-header{display:grid;grid-template-columns:34px minmax(0,1fr) 54px 88px 70px 56px;padding:9px 14px;background:var(--surface);border-bottom:1px solid var(--border);font-size:10px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;gap:6px}
+  .activity-list{max-height:68vh;overflow-y:auto}
+  .activity-list::-webkit-scrollbar{width:3px}
+  .activity-list::-webkit-scrollbar-track{background:var(--bg)}
+  .activity-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+  .activity-row{display:grid;grid-template-columns:34px minmax(0,1fr) 54px 88px 70px 56px;padding:10px 14px;border-bottom:1px solid rgba(30,37,48,.7);font-size:11px;gap:6px;align-items:center;transition:background .1s;animation:rowIn .25s ease forwards}
+  @keyframes rowIn{from{opacity:0;background:rgba(0,194,255,.06)}to{opacity:1}}
+  .activity-row:hover{background:rgba(255,255,255,.02)}
+  .activity-row.flash{animation:flash .6s ease forwards}
+  @keyframes flash{0%{background:rgba(0,194,255,.12)}100%{background:transparent}}
+  .row-num{color:var(--muted);font-size:10px;text-align:center}
+  .row-addr{color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;font-size:11px}
+  .row-addr:hover{text-decoration:underline}
+  .row-type{font-weight:700;font-size:11px}
+  .row-type.BUY{color:var(--buy)}
+  .row-type.SELL{color:var(--sell)}
+  .row-type.MINT{color:#ffd166}
+  .row-amount{color:var(--text);text-align:right;font-size:11px}
+  .row-price{color:#ffd166;text-align:right;font-size:11px}
+  .row-time{color:var(--muted);text-align:right;font-size:10px}
+  .empty-state{padding:44px 20px;text-align:center;color:var(--muted);font-size:12px;line-height:2.2}
+  .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:7px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .toast{position:fixed;bottom:20px;right:20px;background:var(--card);border:1px solid var(--border);padding:11px 16px;border-radius:4px;font-size:11px;color:var(--text);z-index:999;opacity:0;transform:translateY(8px);transition:all .2s;max-width:280px}
+  .toast.show{opacity:1;transform:translateY(0)}
+  /* Setup */
+  .setup-box{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:32px;text-align:center;margin-top:60px}
+  .setup-box h2{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#fff;margin-bottom:8px}
+  .setup-box p{font-size:12px;color:var(--muted);margin-bottom:20px;line-height:1.7}
+  .setup-input{width:100%;max-width:460px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:'Space Mono',monospace;font-size:12px;padding:11px 14px;border-radius:4px;outline:none;margin-bottom:10px;display:block;margin-left:auto;margin-right:auto;transition:border-color .15s}
+  .setup-input:focus{border-color:var(--accent)}
+  .setup-btn{background:var(--accent);color:#000;font-family:'Space Mono',monospace;font-size:12px;font-weight:700;padding:11px 26px;border:none;border-radius:4px;cursor:pointer;letter-spacing:1px;text-transform:uppercase}
+  @media(max-width:560px){
+    .table-header,.activity-row{grid-template-columns:26px minmax(0,1fr) 44px 74px 60px 44px;padding:8px 8px;font-size:10px;gap:4px}
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div id="setup-screen" class="setup-box" style="display:none">
+    <h2>Token Live Activity</h2>
+    <p>Masukkan contract address token yang ingin dipantau.</p>
+    <input class="setup-input" id="manual-contract" type="text" placeholder="0x... contract address"/>
+    <button class="setup-btn" onclick="startFromForm()">▶ MULAI PANTAU</button>
+  </div>
+
+  <div id="live-screen" style="display:none">
+    <div class="label-live"><span class="pulse-dot"></span> LIVE</div>
+    <div class="page-title" id="token-title">Loading...</div>
+    <div class="contract-addr">Contract: <span id="contract-display" onclick="copyContract()">—</span></div>
+    <div id="rpc-badge" class="rpc-badge">connecting...</div>
+
+    <div class="status-bar">
+      <div class="stat-pill">Total TX <strong id="stat-total">0</strong></div>
+      <div class="stat-pill buy-stat">Buy <strong id="stat-buy">0</strong></div>
+      <div class="stat-pill sell-stat">Sell <strong id="stat-sell">0</strong></div>
+      <div class="stat-pill">Block <strong id="stat-block">—</strong></div>
+      <div class="stat-pill">Price <strong id="stat-price">—</strong></div>
+    </div>
+
+    <div class="links-bar" id="links-bar"></div>
+
+    <div class="activity-wrap">
+      <div class="table-header">
+        <span>#</span><span>ADDRESS</span><span>TYPE</span>
+        <span style="text-align:right">AMOUNT</span>
+        <span style="text-align:right">USD</span>
+        <span style="text-align:right">TIME</span>
+      </div>
+      <div class="activity-list" id="activity-list">
+        <div class="empty-state"><span class="spinner"></span>Menunggu transaksi...</div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+//  RPC FALLBACK LIST
+// ============================================================
+const RPC_LIST = [
+  "https://base-rpc.publicnode.com",
+  "https://base.llamarpc.com",
+  "https://mainnet.base.org",
+  "https://1rpc.io/base",
+  "https://base-mainnet.g.alchemy.com/v2/qjHYRYDCGd3pSsBgMdRPI",
+];
+
+let rpcIdx = 0;
+function getRpc(){ return RPC_LIST[rpcIdx % RPC_LIST.length]; }
+function nextRpc(){ rpcIdx++; console.warn("Switching RPC to", getRpc()); }
+
+// ============================================================
+//  CONSTANTS
+// ============================================================
+const NULL_ADDR       = "0x0000000000000000000000000000000000000000";
+const TRANSFER_TOPIC  = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+const WETH_ADDR       = "0x4200000000000000000000000000000000000006";
+const USDC_ADDR       = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
+const POLL_MS         = 2000;
+const MAX_RETRIES     = 3;
+
+// Known router / pool / bridge addresses — transfers FROM/TO these = swap event
+const POOL_ADDRS = new Set([
+  "0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24",
+  "0x2626664c2603336e57b271c5c0b26f421741e481",
+  "0x198ef1ec325a96cc354c7266a038be8b5c558f67",
+  "0xcf77a3ba9a5ca399b7c97c74d54e5b1beb874e43",
+  "0x7f5c764cbc14f9669b88837ca1490cca17c31607",
+  "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+  "0x4200000000000000000000000000000000000006",
+  "0x777777722d078c97c6ad07d9f36801e653e356ae", // Zora factory
+  "0x777777751763b3af7b93c2b7570f0d083c02a8c4", // Zora coin factory
+]);
+
+// ============================================================
+//  STATE
+// ============================================================
+let contractAddress = "";
+let lastBlock       = null;
+let seenTx          = new Set();
+let activities      = [];       // index 0 = OLDEST
+let statBuy = 0, statSell = 0;
+let tokenPrice      = null;     // price in USD
+let polling         = null;
+
+// ============================================================
+//  RPC HELPERS
+// ============================================================
+async function rpcCall(method, params, retries=0){
+  try{
+    const res  = await fetch(getRpc(), {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({jsonrpc:"2.0",id:Date.now(),method,params}),
+      signal: AbortSignal.timeout(6000),
+    });
+    const json = await res.json();
+    if(json.error){
+      // rate limit or block range error → try next RPC
+      if(json.error.code===-32005 || json.error.message?.includes("block range")){
+        if(retries < MAX_RETRIES){ nextRpc(); return rpcCall(method,params,retries+1); }
+      }
+      throw new Error(json.error.message);
+    }
+    setBadgeOk();
+    return json.result;
+  } catch(e){
+    if(retries < MAX_RETRIES){ nextRpc(); return rpcCall(method,params,retries+1); }
+    setBadgeErr(e.message);
+    throw e;
+  }
+}
+
+async function getLatestBlock(){
+  const h = await rpcCall("eth_blockNumber",[]);
+  return parseInt(h,16);
+}
+
+async function getLogs(from, to){
+  return await rpcCall("eth_getLogs",[{
+    fromBlock:"0x"+from.toString(16),
+    toBlock:  "0x"+to.toString(16),
+    address:  contractAddress,
+    topics:   [TRANSFER_TOPIC],
+  }]);
+}
+
+async function getBlockTs(blockHex){
+  try{
+    const b = await rpcCall("eth_getBlockByNumber",[blockHex,false]);
+    return b ? parseInt(b.timestamp,16) : null;
+  }catch(){ return null; }
+}
+
+// ============================================================
+//  URL PARAMS
+// ============================================================
+function getParams(){
+  const p = new URLSearchParams(window.location.search);
+  return {
+    contract:(p.get("contract")||p.get("c")||"").toLowerCase().trim(),
+    rpc: p.get("rpc")||"",
+    name: p.get("name")||"",
+    creator:(p.get("creator")||"").toLowerCase().trim(),
+  };
+}
+
+// ============================================================
+//  BASE.APP ENCODER
+// ============================================================
+function toBaseApp(addr){
+  const net  = new TextEncoder().encode("networks/base-mainnet");
+  const ab   = new TextEncoder().encode(addr.toLowerCase());
+  const inner= new Uint8Array([0x0a,net.length,...net,0x12,ab.length,...ab]);
+  const mid  = new Uint8Array([0x0a,inner.length,...inner]);
+  const out  = new Uint8Array([0x12,mid.length,...mid]);
+  return "https://base.app/content/"+btoa(String.fromCharCode(...out)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+}
+
+// ============================================================
+//  PRICE FETCH via Uniswap V3 slot0 heuristic
+//  We try to read from dexscreener API (no key needed)
+// ============================================================
+async function fetchTokenPrice(contract){
+  try{
+    const r = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${contract}`,{signal:AbortSignal.timeout(5000)});
+    const j = await r.json();
+    const pairs = j?.pairs;
+    if(pairs && pairs.length > 0){
+      // pick highest liquidity pair
+      pairs.sort((a,b)=>(b.liquidity?.usd||0)-(a.liquidity?.usd||0));
+      const p = parseFloat(pairs[0].priceUsd);
+      if(!isNaN(p) && p > 0){ tokenPrice = p; updatePriceDisplay(); return; }
+    }
+  }catch(e){ console.log("price fetch err:",e.message); }
+}
+
+function updatePriceDisplay(){
+  const el = document.getElementById("stat-price");
+  if(!el) return;
+  if(tokenPrice === null){ el.textContent = "—"; return; }
+  el.textContent = tokenPrice < 0.0001
+    ? "$"+tokenPrice.toExponential(2)
+    : "$"+tokenPrice.toPrecision(4);
+}
+
+// ============================================================
+//  INIT
+// ============================================================
+window.addEventListener("load", ()=>{
+  const {contract,rpc,name,creator} = getParams();
+  if(rpc) rpcIdx = RPC_LIST.indexOf(rpc) >= 0 ? RPC_LIST.indexOf(rpc) : 0;
+  if(contract && contract.startsWith("0x") && contract.length===42){
+    contractAddress = contract;
+    startLive(contract, name, creator);
+  } else {
+    document.getElementById("setup-screen").style.display="block";
+  }
+});
+
+function startFromForm(){
+  const c = document.getElementById("manual-contract").value.trim().toLowerCase();
+  if(!c||!c.startsWith("0x")||c.length!==42){ showToast("⚠️ Contract tidak valid"); return; }
+  contractAddress = c;
+  const url = new URL(window.location);
+  url.searchParams.set("contract",c);
+  window.history.replaceState({},"",url);
+  startLive(c,"","");
+}
+
+async function startLive(contract, name, creator){
+  document.getElementById("setup-screen").style.display="none";
+  document.getElementById("live-screen").style.display="block";
+
+  const short = contract.slice(0,6)+"..."+contract.slice(-4);
+  document.getElementById("token-title").textContent = name || "Token "+short;
+  document.getElementById("contract-display").textContent = contract;
+
+  // Links
+  const bar = document.getElementById("links-bar");
+  bar.innerHTML = `
+    <a class="ext-link" href="https://zora.co/coin/base:${contract}" target="_blank">🟣 Zora</a>
+    <a class="ext-link" href="${toBaseApp(contract)}" target="_blank">🔵 Base.app</a>
+    <a class="ext-link" href="https://basescan.org/token/${contract}" target="_blank">🔍 Basescan</a>
+    <a class="ext-link" href="https://dexscreener.com/base/${contract}" target="_blank">📈 DexScreener</a>
+  `;
+
+  // Fetch price (non-blocking)
+  fetchTokenPrice(contract);
+  setInterval(()=>fetchTokenPrice(contract), 15000);
+
+  // Start
+  try{
+    lastBlock = await getLatestBlock();
+    document.getElementById("stat-block").textContent = lastBlock;
+  }catch(e){ console.error(e); }
+
+  // Load history last 20 blocks
+  await loadHistory(lastBlock);
+
+  // Polling
+  if(polling) clearInterval(polling);
+  polling = setInterval(pollNew, POLL_MS);
+}
+
+// ============================================================
+//  HISTORY
+// ============================================================
+async function loadHistory(currentBlock){
+  const FROM = Math.max(0, currentBlock - 20);
+  try{
+    const logs = await getLogs(FROM, currentBlock);
+    // Process oldest→newest, display oldest at bottom
+    for(const log of logs){
+      await processLog(log, false);
+    }
+    if(activities.length===0){
+      setEmpty("Menunggu transaksi pertama...");
+    }
+  }catch(e){
+    console.warn("history err:", e.message);
+    setEmpty("Menunggu transaksi...");
+  }
+}
+
+// ============================================================
+//  POLLING
+// ============================================================
+async function pollNew(){
+  try{
+    const latest = await getLatestBlock();
+    if(latest <= lastBlock) return;
+    document.getElementById("stat-block").textContent = latest;
+
+    const logs = await getLogs(lastBlock+1, latest);
+    for(const log of logs){
+      await processLog(log, true);
+    }
+    lastBlock = latest;
+  }catch(e){
+    console.warn("poll err:", e.message);
+  }
+}
+
+// ============================================================
+//  PROCESS LOG
+// ============================================================
+async function processLog(log, isNew){
+  if(!log.topics || log.topics.length < 3) return;
+
+  const txHash = log.transactionHash;
+  // De-duplicate by txHash+logIndex
+  const uid = txHash + "_" + log.logIndex;
+  if(seenTx.has(uid)) return;
+  seenTx.add(uid);
+
+  const from = ("0x"+log.topics[1].slice(-40)).toLowerCase();
+  const to   = ("0x"+log.topics[2].slice(-40)).toLowerCase();
+
+  // Skip self-transfers
+  if(from === to) return;
+
+  // Classify
+  let type;
+  if(from === NULL_ADDR){
+    type = "MINT"; // initial mint = creator
+  } else if(to === NULL_ADDR){
+    type = "SELL"; // burn = sell
+  } else if(POOL_ADDRS.has(from)){
+    type = "BUY";  // pool→user = buy
+  } else if(POOL_ADDRS.has(to)){
+    type = "SELL"; // user→pool = sell
+  } else {
+    type = "BUY";  // fallback: treat transfer as buy
+  }
+
+  // Amount (18 decimals)
+  let amount = 0;
+  try{ amount = BigInt("0x"+log.data.replace(/^0x/,"")) }catch(e){}
+  const amtHuman = Number(amount) / 1e18;
+  const amountFmt = formatAmt(amtHuman);
+
+  // USD value
+  let usdStr = "—";
+  if(tokenPrice !== null && amtHuman > 0){
+    const usd = amtHuman * tokenPrice;
+    usdStr = usd >= 1 ? "$"+usd.toFixed(2) : "$"+usd.toPrecision(3);
+  }
+
+  // Timestamp
+  let timeStr = "—";
+  try{
+    const ts = await getBlockTs(log.blockNumber);
+    if(ts) timeStr = formatRelTime(ts);
+  }catch(e){}
+
+  const displayAddr = type==="BUY" || type==="MINT" ? to : from;
+  const blockNum    = parseInt(log.blockNumber,16);
+
+  const row = {uid, txHash, from, to, type, amtHuman, amountFmt, usdStr, timeStr, blockNum, displayAddr};
+  activities.push(row); // push to end = newest
+  renderRow(row, isNew);
+  updateStats(type);
+}
+
+// ============================================================
+//  RENDER
+// ============================================================
+function renderRow(row, isNew){
+  const list = document.getElementById("activity-list");
+  const empty = list.querySelector(".empty-state");
+  if(empty) empty.remove();
+
+  const el = document.createElement("div");
+  el.className = "activity-row" + (isNew ? " flash" : "");
+  el.dataset.uid = row.uid;
+
+  // # = position in timeline (1 = FIRST buyer)
+  const idx = activities.length;
+
+  el.innerHTML = `
+    <span class="row-num">${idx}</span>
+    <span class="row-addr" title="${row.displayAddr}" onclick="openAddr('${row.displayAddr}')">${shorten(row.displayAddr)}</span>
+    <span class="row-type ${row.type}">${row.type}</span>
+    <span class="row-amount">${row.amountFmt}</span>
+    <span class="row-price">${row.usdStr}</span>
+    <span class="row-time">${row.timeStr}</span>
+  `;
+
+  // NEW rows go to TOP, old rows accumulate at BOTTOM
+  // So newest = top, oldest = bottom (like the screenshot)
+  if(isNew){
+    list.insertBefore(el, list.firstChild);
+    // renumber: top row gets highest #, bottom gets 1
+    renumber();
+  } else {
+    // history: append to bottom (they're already oldest-first)
+    list.appendChild(el);
+    renumber();
+  }
+}
+
+function renumber(){
+  const rows = document.querySelectorAll(".activity-row");
+  const total = rows.length;
+  // Top row = most recent = highest number
+  // Bottom row = first buyer = #1
+  rows.forEach((r, i) => {
+    const numEl = r.querySelector(".row-num");
+    if(numEl) numEl.textContent = total - i;
+  });
+}
+
+function setEmpty(msg){
+  document.getElementById("activity-list").innerHTML =
+    `<div class="empty-state"><span class="spinner"></span>${msg}</div>`;
+}
+
+function updateStats(type){
+  if(type==="BUY"||type==="MINT") statBuy++;
+  else statSell++;
+  document.getElementById("stat-total").textContent = activities.length;
+  document.getElementById("stat-buy").textContent   = statBuy;
+  document.getElementById("stat-sell").textContent  = statSell;
+}
+
+// ============================================================
+//  UTILS
+// ============================================================
+function shorten(addr){ return addr ? addr.slice(0,6)+"..."+addr.slice(-4) : "—"; }
+
+function formatAmt(val){
+  if(!val || val===0) return "—";
+  if(val>=1e9)  return (val/1e9).toFixed(2)+"B";
+  if(val>=1e6)  return (val/1e6).toFixed(2)+"M";
+  if(val>=1000) return (val/1000).toFixed(2)+"k";
+  return val.toFixed(4);
+}
+
+function formatRelTime(ts){
+  const diff = Math.floor(Date.now()/1000) - ts;
+  if(diff<60)    return diff+"s";
+  if(diff<3600)  return Math.floor(diff/60)+"m";
+  if(diff<86400) return Math.floor(diff/3600)+"h";
+  return Math.floor(diff/86400)+"d";
+}
+
+function openAddr(addr){ window.open(`https://basescan.org/address/${addr}`,"_blank"); }
+
+function copyContract(){
+  navigator.clipboard.writeText(contractAddress)
+    .then(()=>showToast("✅ Contract disalin!"))
+    .catch(()=>{});
+}
+
+function showToast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"), 2500);
+}
+
+function setBadgeOk(){
+  const b = document.getElementById("rpc-badge");
+  if(!b) return;
+  b.className="rpc-badge ok";
+  b.textContent="● RPC OK · "+new URL(getRpc()).hostname;
+}
+
+function setBadgeErr(msg){
+  const b = document.getElementById("rpc-badge");
+  if(!b) return;
+  b.className="rpc-badge err";
+  b.textContent="⚠ "+msg.slice(0,40);
+}
+</script>
+</body>
+</html>
