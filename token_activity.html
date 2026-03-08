@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Token Live Activity</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap');
+:root{--bg:#090c10;--surface:#0e1117;--border:#1e2530;--buy:#00ff88;--sell:#ff3b6b;--accent:#00c2ff;--text:#e2e8f0;--muted:#4a5568;--card:#111620}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'Space Mono',monospace;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,194,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,194,255,.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+.wrap{position:relative;z-index:1;max-width:900px;margin:0 auto;padding:18px 14px}
+.live-pill{display:inline-flex;align-items:center;gap:6px;background:rgba(255,59,107,.12);border:1px solid rgba(255,59,107,.3);color:var(--sell);font-size:10px;font-weight:700;letter-spacing:2px;padding:4px 10px;border-radius:2px;margin-bottom:10px}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--sell);animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.title{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#fff;line-height:1.2}
+.caddr{font-size:11px;color:var(--muted);margin-top:5px;word-break:break-all}
+.caddr span{color:var(--accent);cursor:pointer}
+.ws-badge{display:inline-block;font-size:9px;padding:2px 8px;border-radius:2px;margin-top:5px;letter-spacing:1px;border:1px solid}
+.ws-badge.connecting{color:#ffd166;border-color:rgba(255,209,102,.3);background:rgba(255,209,102,.08)}
+.ws-badge.live{color:var(--buy);border-color:rgba(0,255,136,.3);background:rgba(0,255,136,.08)}
+.ws-badge.error{color:var(--sell);border-color:rgba(255,59,107,.3);background:rgba(255,59,107,.08)}
+.topbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:10px}
+.clear-btn{font-size:10px;font-family:'Space Mono',monospace;background:rgba(255,59,107,.1);border:1px solid rgba(255,59,107,.3);color:var(--sell);padding:4px 10px;border-radius:3px;cursor:pointer;letter-spacing:1px}
+.clear-btn:hover{background:rgba(255,59,107,.2)}
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+.pill{background:var(--card);border:1px solid var(--border);padding:7px 13px;border-radius:4px;font-size:11px;color:var(--muted);display:flex;align-items:center;gap:7px}
+.pill strong{color:var(--text);font-size:13px}
+.pill.b strong{color:var(--buy)}
+.pill.s strong{color:var(--sell)}
+.links{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.lnk{display:inline-flex;align-items:center;gap:5px;background:var(--card);border:1px solid var(--border);color:var(--muted);font-size:11px;padding:6px 12px;border-radius:3px;text-decoration:none;transition:all .15s;font-family:'Space Mono',monospace}
+.lnk:hover{border-color:var(--accent);color:var(--accent)}
+.tbl-wrap{background:var(--card);border:1px solid var(--border);border-radius:6px;overflow:hidden}
+.tbl-head{display:grid;grid-template-columns:34px minmax(0,1fr) 54px 90px 72px 52px;padding:9px 14px;background:var(--surface);border-bottom:1px solid var(--border);font-size:10px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;gap:6px}
+.tbl-body{max-height:70vh;overflow-y:auto}
+.tbl-body::-webkit-scrollbar{width:3px}
+.tbl-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.row{display:grid;grid-template-columns:34px minmax(0,1fr) 54px 90px 72px 52px;padding:10px 14px;border-bottom:1px solid rgba(30,37,48,.7);font-size:11px;gap:6px;align-items:center}
+.row.new{animation:flash .8s ease forwards}
+@keyframes flash{0%{background:rgba(0,194,255,.14)}100%{background:transparent}}
+.row:hover{background:rgba(255,255,255,.02)}
+.rn{color:var(--muted);font-size:10px;text-align:center}
+.ra{color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;font-size:11px}
+.ra:hover{text-decoration:underline}
+.rt{font-weight:700;font-size:11px}
+.rt.BUY{color:var(--buy)}
+.rt.SELL{color:var(--sell)}
+.rt.MINT{color:#ffd166}
+.ramt{color:var(--text);text-align:right}
+.rusd{color:#ffd166;text-align:right}
+.rtime{color:var(--muted);text-align:right;font-size:10px;font-variant-numeric:tabular-nums}
+.empty{padding:44px 20px;text-align:center;color:var(--muted);font-size:12px;line-height:2.2}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:7px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:20px;right:20px;background:var(--card);border:1px solid var(--border);padding:11px 16px;border-radius:4px;font-size:11px;z-index:999;opacity:0;transform:translateY(8px);transition:all .2s;pointer-events:none}
+.toast.show{opacity:1;transform:translateY(0)}
+.setup{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:32px;text-align:center;margin-top:60px}
+.setup h2{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#fff;margin-bottom:8px}
+.setup p{font-size:12px;color:var(--muted);margin-bottom:20px;line-height:1.7}
+.inp{width:100%;max-width:460px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:'Space Mono',monospace;font-size:12px;padding:11px 14px;border-radius:4px;outline:none;margin-bottom:10px;display:block;margin-left:auto;margin-right:auto}
+.inp:focus{border-color:var(--accent)}
+.btn{background:var(--accent);color:#000;font-family:'Space Mono',monospace;font-size:12px;font-weight:700;padding:11px 26px;border:none;border-radius:4px;cursor:pointer;letter-spacing:1px;text-transform:uppercase}
+@media(max-width:540px){
+  .tbl-head,.row{grid-template-columns:26px minmax(0,1fr) 44px 76px 60px 44px;padding:8px 8px;gap:4px;font-size:10px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="setup-screen" class="setup" style="display:none">
+    <h2>Token Live Activity</h2>
+    <p>Masukkan contract address token.</p>
+    <input class="inp" id="inp-contract" placeholder="0x... contract address"/>
+    <button class="btn" onclick="startFromForm()">▶ PANTAU</button>
+  </div>
+
+  <div id="live-screen" style="display:none">
+    <div class="live-pill"><span class="dot"></span> LIVE</div>
+    <div class="topbar">
+      <div>
+        <div class="title" id="ttitle">Loading...</div>
+        <div class="caddr">Contract: <span id="caddr" onclick="copyContract()">—</span></div>
+        <div id="ws-badge" class="ws-badge connecting">⏳ Connecting...</div>
+      </div>
+      <button class="clear-btn" onclick="clearData()">🗑 CLEAR</button>
+    </div>
+
+    <div class="stats">
+      <div class="pill">Total TX <strong id="s-total">0</strong></div>
+      <div class="pill b">Buy <strong id="s-buy">0</strong></div>
+      <div class="pill s">Sell <strong id="s-sell">0</strong></div>
+      <div class="pill">Block <strong id="s-block">—</strong></div>
+      <div class="pill">Price <strong id="s-price">—</strong></div>
+    </div>
+
+    <div class="links" id="links"></div>
+
+    <div class="tbl-wrap">
+      <div class="tbl-head">
+        <span>#</span><span>ADDRESS</span><span>TYPE</span>
+        <span style="text-align:right">AMOUNT</span>
+        <span style="text-align:right">USD</span>
+        <span style="text-align:right">TIME</span>
+      </div>
+      <div class="tbl-body" id="tbl-body">
+        <div class="empty"><span class="spin"></span>Memuat data...</div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ── WebSocket endpoints ──────────────────────────────────────
+const WS_LIST = [
+  "wss://base-rpc.publicnode.com",
+  "wss://base.llamarpc.com",
+  "wss://mainnet.base.org/ws",
+];
+// ── HTTP RPC ─────────────────────────────────────────────────
+const HTTP_LIST = [
+  "https://base-rpc.publicnode.com",
+  "https://base.llamarpc.com",
+  "https://mainnet.base.org",
+  "https://1rpc.io/base",
+  "https://base-mainnet.g.alchemy.com/v2/qjHYRYDCGd3pSsBgMdRPI",
+];
+
+const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+const NULL_ADDR      = "0x0000000000000000000000000000000000000000";
+
+// Addresses yang BUKAN user wallet — transfer ke/dari ini = internal/fee, skip
+const SKIP_ADDRS = new Set([
+  "0x0000000000000000000000000000000000000000",
+  "0x777777722d078c97c6ad07d9f36801e653e356ae",  // zora factory
+  "0x777777751763b3af7b93c2b7570f0d083c02a8c4",  // zora coin factory
+  "0x4200000000000000000000000000000000000006",  // WETH
+  "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",  // USDC
+]);
+
+// Pool/router addresses: transfer FROM ini = BUY, transfer TO ini = SELL
+const POOL_ADDRS = new Set([
+  "0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24",
+  "0x2626664c2603336e57b271c5c0b26f421741e481",
+  "0x198ef1ec325a96cc354c7266a038be8b5c558f67",
+  "0xcf77a3ba9a5ca399b7c97c74d54e5b1beb874e43",
+  "0x6ff3fec7b9f3a477e7c1f8be92f1c6978b28f048",
+]);
+
+// ── State ────────────────────────────────────────────────────
+let contract   = "";
+let storageKey = "";
+let ws         = null;
+let wsIdx      = 0;
+let httpIdx    = 0;
+
+// seenTx = Set of txHash that already has a row (1 row per tx)
+let seenTx = new Set();
+// rows = array of row objects, oldest first
+let rows   = [];
+let nBuy=0, nSell=0;
+let tokenPrice = null;
+let lastBlock  = 0;
+
+// ── LocalStorage helpers ─────────────────────────────────────
+function saveRows(){
+  try{
+    // Keep max 500 rows to avoid storage overflow
+    const toSave = rows.slice(-500);
+    localStorage.setItem(storageKey, JSON.stringify(toSave));
+  }catch(e){}
+}
+
+function loadRows(){
+  try{
+    const raw = localStorage.getItem(storageKey);
+    return raw ? JSON.parse(raw) : [];
+  }catch(e){ return []; }
+}
+
+function clearData(){
+  if(!confirm("Hapus semua data activity untuk token ini?")) return;
+  localStorage.removeItem(storageKey);
+  seenTx.clear();
+  rows=[];
+  nBuy=0; nSell=0;
+  document.getElementById("s-total").textContent="0";
+  document.getElementById("s-buy").textContent="0";
+  document.getElementById("s-sell").textContent="0";
+  document.getElementById("tbl-body").innerHTML=
+    '<div class="empty"><span class="spin"></span>Menunggu transaksi...</div>';
+  showToast("🗑 Data dihapus");
+}
+
+// ── Params ────────────────────────────────────────────────────
+function getParams(){
+  const p = new URLSearchParams(location.search);
+  return {
+    contract:(p.get("contract")||p.get("c")||"").toLowerCase().trim(),
+    name: p.get("name")||"",
+    creator:(p.get("creator")||"").toLowerCase().trim(),
+  };
+}
+
+// ── Init ─────────────────────────────────────────────────────
+window.onload = ()=>{
+  const {contract:c,name,creator} = getParams();
+  if(c && c.startsWith("0x") && c.length===42){
+    contract=c; boot(name,creator);
+  } else {
+    document.getElementById("setup-screen").style.display="block";
+  }
+};
+
+function startFromForm(){
+  const c=document.getElementById("inp-contract").value.trim().toLowerCase();
+  if(!c||c.length!==42){showToast("⚠️ Contract tidak valid");return;}
+  contract=c;
+  const u=new URL(location); u.searchParams.set("contract",c);
+  history.replaceState({},"",u);
+  boot("","");
+}
+
+async function boot(name, creator){
+  document.getElementById("setup-screen").style.display="none";
+  document.getElementById("live-screen").style.display="block";
+
+  storageKey = "activity_"+contract;
+
+  const short = contract.slice(0,6)+"..."+contract.slice(-4);
+  document.getElementById("ttitle").textContent = name||"Token "+short;
+  document.getElementById("caddr").textContent  = contract;
+  buildLinks(creator);
+
+  // ── Load saved rows from localStorage ──────────────────────
+  const saved = loadRows();
+  if(saved.length > 0){
+    document.getElementById("tbl-body").innerHTML="";
+    for(const row of saved){
+      seenTx.add(row.txHash);
+      rows.push(row);
+      if(row.type==="BUY"||row.type==="MINT") nBuy++;
+      else nSell++;
+      mountRow(row, false);
+    }
+    renumber();
+    updateStatsDom();
+    showToast("📂 "+saved.length+" transaksi dimuat dari cache");
+  }
+
+  // ── Fetch price ─────────────────────────────────────────────
+  fetchPrice();
+  setInterval(fetchPrice, 15000);
+
+  // ── Get current block & load recent history ─────────────────
+  try{
+    const blkHex = await httpCall("eth_blockNumber",[]);
+    lastBlock = parseInt(blkHex,16);
+    document.getElementById("s-block").textContent=lastBlock;
+
+    // Only fetch history for blocks NOT already in saved data
+    const minHistBlock = lastBlock - 30;
+    const alreadyHaveUpTo = saved.length>0 ? (saved[saved.length-1].blockNum||0) : 0;
+    if(alreadyHaveUpTo < minHistBlock){
+      await loadHistory(lastBlock);
+    }
+  }catch(e){ console.warn("block fetch err",e.message); }
+
+  // ── Start WebSocket ─────────────────────────────────────────
+  connectWS();
+
+  // ── Live timer: update all time cells every second ──────────
+  setInterval(()=>{
+    document.querySelectorAll(".rtime[data-ts]").forEach(el=>{
+      el.textContent = fmtTime(parseInt(el.dataset.ts));
+    });
+    // Refresh USD cells if price just loaded
+    if(tokenPrice!==null){
+      document.querySelectorAll(".rusd[data-amt]").forEach(el=>{
+        if(el.textContent==="—"){
+          const amt=parseFloat(el.dataset.amt);
+          el.textContent=fmtUsd(amt);
+        }
+      });
+    }
+  },1000);
+}
+
+// ── WebSocket ─────────────────────────────────────────────────
+function connectWS(){
+  setBadge("connecting","⏳ Connecting...");
+  const url = WS_LIST[wsIdx % WS_LIST.length];
+  ws = new WebSocket(url);
+
+  ws.onopen = ()=>{
+    setBadge("live","⚡ LIVE · "+new URL(url).hostname);
+    ws.send(JSON.stringify({
+      jsonrpc:"2.0",id:1,method:"eth_subscribe",
+      params:["logs",{address:contract,topics:[TRANSFER_TOPIC]}]
+    }));
+  };
+
+  ws.onmessage = (e)=>{
+    const msg = JSON.parse(e.data);
+    if(msg.method==="eth_subscription"&&msg.params?.result){
+      const log=msg.params.result;
+      const blk=parseInt(log.blockNumber,16);
+      if(blk>lastBlock){
+        lastBlock=blk;
+        document.getElementById("s-block").textContent=blk;
+      }
+      processLog(log, true);
+    }
+  };
+
+  ws.onerror = ()=>setBadge("error","❌ WS Error");
+  ws.onclose = ()=>{
+    setBadge("error","🔄 Reconnecting...");
+    wsIdx++;
+    setTimeout(connectWS,2500);
+  };
+}
+
+// ── HTTP helper ───────────────────────────────────────────────
+async function httpCall(method,params,retry=0){
+  const url=HTTP_LIST[httpIdx%HTTP_LIST.length];
+  try{
+    const r=await fetch(url,{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({jsonrpc:"2.0",id:Date.now(),method,params}),
+      signal:AbortSignal.timeout(7000),
+    });
+    const j=await r.json();
+    if(j.error){
+      if(retry<4){httpIdx++;return httpCall(method,params,retry+1);}
+      throw new Error(j.error.message);
+    }
+    return j.result;
+  }catch(e){
+    if(retry<4){httpIdx++;return httpCall(method,params,retry+1);}
+    throw e;
+  }
+}
+
+// ── Load history ──────────────────────────────────────────────
+async function loadHistory(currentBlock){
+  const from=Math.max(0,currentBlock-30);
+  try{
+    const logs=await httpCall("eth_getLogs",[{
+      fromBlock:"0x"+from.toString(16),
+      toBlock:"0x"+currentBlock.toString(16),
+      address:contract,
+      topics:[TRANSFER_TOPIC],
+    }]);
+    if(logs&&logs.length>0){
+      // Group by txHash — pick best log per tx
+      const byTx={};
+      for(const log of logs){
+        const tx=log.transactionHash;
+        if(!byTx[tx]) byTx[tx]=[];
+        byTx[tx].push(log);
+      }
+      for(const tx of Object.keys(byTx)){
+        const best=pickBestLog(byTx[tx]);
+        if(best) await processLog(best,false);
+      }
+    }
+    if(rows.length===0){
+      setEmpty("Menunggu transaksi pertama...");
+    }
+  }catch(e){
+    console.warn("history err",e.message);
+    if(rows.length===0) setEmpty("Menunggu transaksi...");
+  }
+}
+
+// ── Pick best log from a tx (avoid duplicate rows per tx) ────
+// Strategy: prefer the log where 'to' is an EOA/user (not a contract/pool/null)
+function pickBestLog(logs){
+  // Filter out internal/fee transfers (both from & to are protocol addresses)
+  const userLogs = logs.filter(log=>{
+    if(log.topics.length<3) return false;
+    const from=("0x"+log.topics[1].slice(-40)).toLowerCase();
+    const to=("0x"+log.topics[2].slice(-40)).toLowerCase();
+    // Skip if both sides are protocol addresses
+    if(SKIP_ADDRS.has(from)&&SKIP_ADDRS.has(to)) return false;
+    if(SKIP_ADDRS.has(to)) return false;
+    return true;
+  });
+
+  if(userLogs.length===0) return null;
+
+  // Prefer: FROM pool → user (= buy) with largest amount
+  const buyLogs=userLogs.filter(log=>{
+    const from=("0x"+log.topics[1].slice(-40)).toLowerCase();
+    return POOL_ADDRS.has(from)||from===NULL_ADDR;
+  });
+
+  if(buyLogs.length>0){
+    // Pick largest amount
+    return buyLogs.reduce((best,cur)=>{
+      const ba=parseInt((best.data||"0x0").replace(/^0x/,""),16)||0;
+      const ca=parseInt((cur.data||"0x0").replace(/^0x/,""),16)||0;
+      return ca>ba?cur:best;
+    });
+  }
+
+  // Sell logs: TO pool
+  const sellLogs=userLogs.filter(log=>{
+    const to=("0x"+log.topics[2].slice(-40)).toLowerCase();
+    return POOL_ADDRS.has(to);
+  });
+  if(sellLogs.length>0) return sellLogs[0];
+
+  // Fallback: largest amount log
+  return userLogs.reduce((best,cur)=>{
+    const ba=parseInt((best.data||"0x0").replace(/^0x/,""),16)||0;
+    const ca=parseInt((cur.data||"0x0").replace(/^0x/,""),16)||0;
+    return ca>ba?cur:best;
+  });
+}
+
+// ── Process log ───────────────────────────────────────────────
+async function processLog(log, isNew){
+  if(!log.topics||log.topics.length<3) return;
+
+  const txHash=log.transactionHash;
+  // ONE ROW PER TX — skip if already have this txHash
+  if(seenTx.has(txHash)) return;
+  seenTx.add(txHash);
+
+  const from=("0x"+log.topics[1].slice(-40)).toLowerCase();
+  const to=("0x"+log.topics[2].slice(-40)).toLowerCase();
+  if(from===to) return;
+
+  // Classify
+  let type;
+  if(from===NULL_ADDR)        type="MINT";
+  else if(to===NULL_ADDR)     type="SELL";
+  else if(POOL_ADDRS.has(from))type="BUY";
+  else if(POOL_ADDRS.has(to)) type="SELL";
+  else                        type="BUY";
+
+  // Amount
+  let amt=0;
+  try{
+    const hex=log.data.replace(/^0x/,"");
+    amt=hex?parseInt(hex.slice(-64),16)/1e18:0;
+  }catch(e){}
+
+  // Timestamp
+  let ts=Math.floor(Date.now()/1000);
+  if(!isNew){
+    try{
+      const blk=await httpCall("eth_getBlockByNumber",[log.blockNumber,false]);
+      if(blk) ts=parseInt(blk.timestamp,16);
+    }catch(e){}
+  }
+
+  const addr=(type==="BUY"||type==="MINT")?to:from;
+  const blockNum=parseInt(log.blockNumber,16);
+
+  const row={txHash,from,to,addr,type,amt,ts,blockNum};
+  rows.push(row);
+
+  // Persist to localStorage
+  saveRows();
+
+  renderRow(row,isNew);
+  updateStats(type);
+}
+
+// ── Render row ────────────────────────────────────────────────
+function renderRow(row, isNew){
+  const body=document.getElementById("tbl-body");
+  const empty=body.querySelector(".empty");
+  if(empty) empty.remove();
+
+  const el=document.createElement("div");
+  el.className="row"+(isNew?" new":"");
+  el.id="row-"+row.txHash;
+
+  el.innerHTML=`
+    <span class="rn">?</span>
+    <span class="ra" title="${row.addr}" onclick="openAddr('${row.addr}')">${shorten(row.addr)}</span>
+    <span class="rt ${row.type}">${row.type}</span>
+    <span class="ramt">${fmtAmt(row.amt)}</span>
+    <span class="rusd" data-amt="${row.amt}">${fmtUsd(row.amt)}</span>
+    <span class="rtime" data-ts="${row.ts}">${fmtTime(row.ts)}</span>
+  `;
+
+  if(isNew){
+    body.insertBefore(el,body.firstChild);
+  } else {
+    body.appendChild(el);
+  }
+  renumber();
+}
+
+// mountRow = render without animation (for cached data on load)
+function mountRow(row, isNew){
+  renderRow(row, isNew);
+}
+
+function renumber(){
+  const all=document.querySelectorAll(".row");
+  const n=all.length;
+  // Top row = newest = highest #; bottom row = oldest = #1
+  all.forEach((r,i)=>{
+    const el=r.querySelector(".rn");
+    if(el) el.textContent=n-i;
+  });
+}
+
+function setEmpty(msg){
+  document.getElementById("tbl-body").innerHTML=
+    `<div class="empty"><span class="spin"></span>${msg}</div>`;
+}
+
+function updateStats(type){
+  if(type==="BUY"||type==="MINT") nBuy++;
+  else nSell++;
+  updateStatsDom();
+}
+
+function updateStatsDom(){
+  document.getElementById("s-total").textContent=rows.length;
+  document.getElementById("s-buy").textContent=nBuy;
+  document.getElementById("s-sell").textContent=nSell;
+}
+
+// ── Price ─────────────────────────────────────────────────────
+async function fetchPrice(){
+  try{
+    const r=await fetch(`https://api.dexscreener.com/latest/dex/tokens/${contract}`,
+      {signal:AbortSignal.timeout(5000)});
+    const j=await r.json();
+    const pairs=j?.pairs;
+    if(pairs&&pairs.length>0){
+      pairs.sort((a,b)=>(b.liquidity?.usd||0)-(a.liquidity?.usd||0));
+      const p=parseFloat(pairs[0].priceUsd);
+      if(!isNaN(p)&&p>0){
+        tokenPrice=p;
+        document.getElementById("s-price").textContent=fmtPrice(p);
+      }
+    }
+  }catch(e){}
+}
+
+// ── Utils ─────────────────────────────────────────────────────
+function fmtAmt(v){
+  if(!v||v===0) return "—";
+  if(v>=1e9)  return (v/1e9).toFixed(2)+"B";
+  if(v>=1e6)  return (v/1e6).toFixed(2)+"M";
+  if(v>=1000) return (v/1000).toFixed(2)+"k";
+  return v.toFixed(4);
+}
+function fmtUsd(amt){
+  if(tokenPrice===null||!amt||amt===0) return "—";
+  const u=amt*tokenPrice;
+  if(u>=1000) return "$"+(u/1000).toFixed(1)+"k";
+  if(u>=1)    return "$"+u.toFixed(2);
+  return "$"+u.toPrecision(3);
+}
+function fmtPrice(p){
+  if(p>=1)       return "$"+p.toFixed(4);
+  if(p>=0.0001)  return "$"+p.toPrecision(4);
+  return "$"+p.toExponential(2);
+}
+function fmtTime(ts){
+  const d=Math.floor(Date.now()/1000)-ts;
+  if(d<0)   return "just now";
+  if(d<60)  return d+"s";
+  if(d<3600){const m=Math.floor(d/60),s=d%60;return m+"m"+(s?" "+s+"s":"");}
+  if(d<86400){const h=Math.floor(d/3600),m=Math.floor((d%3600)/60);return h+"h"+(m?" "+m+"m":"");}
+  return Math.floor(d/86400)+"d";
+}
+function shorten(a){return a?a.slice(0,6)+"..."+a.slice(-4):"—";}
+function openAddr(a){window.open("https://basescan.org/address/"+a,"_blank");}
+function copyContract(){
+  navigator.clipboard.writeText(contract)
+    .then(()=>showToast("✅ Contract disalin!")).catch(()=>{});
+}
+function showToast(m){
+  const t=document.getElementById("toast");
+  t.textContent=m;t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"),2500);
+}
+function setBadge(cls,txt){
+  const b=document.getElementById("ws-badge");
+  b.className="ws-badge "+cls;b.textContent=txt;
+}
+function toBaseApp(addr){
+  const net=new TextEncoder().encode("networks/base-mainnet");
+  const ab=new TextEncoder().encode(addr.toLowerCase());
+  const inner=new Uint8Array([0x0a,net.length,...net,0x12,ab.length,...ab]);
+  const mid=new Uint8Array([0x0a,inner.length,...inner]);
+  const out=new Uint8Array([0x12,mid.length,...mid]);
+  return "https://base.app/content/"+btoa(String.fromCharCode(...out))
+    .replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+}
+function buildLinks(creator){
+  document.getElementById("links").innerHTML=`
+    <a class="lnk" href="https://zora.co/coin/base:${contract}" target="_blank">🟣 Zora</a>
+    <a class="lnk" href="${toBaseApp(contract)}" target="_blank">🔵 Base.app</a>
+    <a class="lnk" href="https://basescan.org/token/${contract}" target="_blank">🔍 Basescan</a>
+    <a class="lnk" href="https://dexscreener.com/base/${contract}" target="_blank">📈 DexScreener</a>
+  `;
+}
+</script>
+</body>
+</html>
