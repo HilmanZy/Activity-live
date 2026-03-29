@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Base Wallet Liquidity Scanner</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a0a0f;--bg2:#111118;--bg3:#1a1a24;--border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.14);--text:#f0f0f8;--text2:#8888aa;--text3:#555570;--accent:#6c63ff;--green:#4ade80;--warn:#fbbf24;--danger:#f87171;--mono:'DM Mono',monospace;--sans:'Syne',sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh}
+.wrap{max-width:1200px;margin:0 auto;padding:32px 20px}
+h1{font-size:24px;font-weight:700;letter-spacing:-0.5px;margin-bottom:4px}
+.sub{font-size:13px;color:var(--text2);margin-bottom:24px}
+.cbadge{display:inline-flex;align-items:center;gap:6px;background:rgba(108,99,255,0.15);border:1px solid rgba(108,99,255,0.3);border-radius:999px;padding:3px 10px;font-size:11px;font-weight:500;color:#a5a0ff;margin-bottom:10px}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:14px}
+.hint{background:rgba(108,99,255,0.07);border:1px solid rgba(108,99,255,0.15);border-radius:10px;padding:12px 16px;font-size:12px;color:#9994cc;margin-bottom:14px;line-height:1.7}
+.hint strong{color:#a5a0ff}
+.hint a{color:#a5a0ff}
+label{display:block;font-size:11px;font-weight:500;color:var(--text2);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
+input[type=text],input[type=password],input[type=number]{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-family:var(--mono);font-size:13px;color:var(--text);outline:none;transition:border .2s;margin-bottom:14px}
+input:focus{border-color:rgba(108,99,255,.5)}
+input::placeholder{color:var(--text3)}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.frow input{margin-bottom:0}
+.scan-btn{width:100%;padding:12px;background:var(--accent);border:none;border-radius:8px;color:#fff;font-family:var(--sans);font-size:14px;font-weight:700;cursor:pointer;margin-top:16px;transition:opacity .2s,transform .1s}
+.scan-btn:hover{opacity:.88}
+.scan-btn:active{transform:scale(.99)}
+.scan-btn:disabled{opacity:.35;cursor:not-allowed;transform:none}
+.msg{border-radius:10px;padding:12px 16px;font-size:13px;margin-bottom:14px;display:none;line-height:1.6}
+.msg.ok{background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.2);color:var(--green)}
+.msg.er{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.2);color:var(--danger)}
+.prog-area{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:14px;display:none}
+.prog-bg{height:3px;background:var(--bg3);border-radius:2px;overflow:hidden;margin-bottom:10px}
+.prog-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .35s ease}
+.prog-txt{font-size:12px;color:var(--text2);font-family:var(--mono)}
+.stats{display:none;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+.sc{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px}
+.sl{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
+.sv{font-size:22px;font-weight:700}
+.ctrl{display:none;margin-bottom:14px}
+.ctrls{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.ctrls input[type=text]{font-size:12px;padding:8px 12px;width:220px;margin-bottom:0;font-family:var(--sans)}
+select{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--text);font-family:var(--sans);outline:none;cursor:pointer}
+.exp-btn{padding:8px 14px;background:transparent;border:1px solid var(--border2);border-radius:8px;color:var(--text2);font-size:12px;cursor:pointer;font-family:var(--sans);transition:all .2s}
+.exp-btn:hover{border-color:var(--accent);color:var(--accent)}
+.rc{font-size:12px;color:var(--text3);margin-left:auto}
+.twrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px;min-width:820px}
+th{font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:11px 12px;border-bottom:1px solid rgba(255,255,255,.04);vertical-align:middle}
+tr:hover td{background:rgba(255,255,255,.025)}
+tr:last-child td{border-bottom:none}
+.tn{font-weight:500;font-size:12px;color:var(--text)}
+.ts{font-size:10px;color:var(--text3);margin-top:1px}
+.ms{font-family:var(--mono);font-size:11px;color:var(--text2)}
+.vl{font-weight:500;color:var(--text)}
+.up{color:var(--green);font-size:10px}
+.dn{color:var(--danger);font-size:10px}
+.badge{display:inline-block;font-size:10px;padding:2px 8px;border-radius:999px;font-weight:500;margin-top:2px}
+.bhi{background:rgba(74,222,128,.12);color:#4ade80;border:1px solid rgba(74,222,128,.2)}
+.bmd{background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.2)}
+.blo{background:rgba(248,113,113,.12);color:#f87171;border:1px solid rgba(248,113,113,.2)}
+.cc{display:flex;align-items:center;gap:5px}
+.cpb{padding:2px 7px;background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--text3);font-size:10px;cursor:pointer;font-family:var(--mono);transition:all .15s;white-space:nowrap}
+.cpb:hover{border-color:var(--accent);color:var(--accent)}
+.cpb.ok{border-color:var(--green);color:var(--green)}
+.pg{display:flex;align-items:center;gap:8px;margin-top:16px}
+.pgb{padding:6px 12px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:12px;cursor:pointer;font-family:var(--sans);transition:all .2s}
+.pgb:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.pgb:disabled{opacity:.3;cursor:not-allowed}
+.pgi{font-size:12px;color:var(--text3)}
+.empty{text-align:center;padding:3rem;color:var(--text3);font-size:13px}
+@media(max-width:600px){.stats{grid-template-columns:repeat(2,1fr)}.frow{grid-template-columns:1fr}.ctrls input[type=text]{width:100%}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="cbadge"><span class="dot"></span>Base Chain &middot; GeckoTerminal + Alchemy</div>
+  <h1>Wallet Liquidity Scanner</h1>
+  <p class="sub">Scan semua token di wallet Base &mdash; filter yang ada likuiditas, urutkan nilai terbesar</p>
+
+  <div class="hint">
+    <strong>Cara dapat Alchemy API Key (gratis):</strong> Daftar di
+    <a href="https://alchemy.com" target="_blank">alchemy.com</a>
+    &rarr; Create App &rarr; pilih chain <strong>Base</strong> &rarr; copy API Key.<br>
+    Data likuiditas dari <strong>GeckoTerminal</strong> &mdash; gratis, tanpa API key, tidak ada CORS issue.
+  </div>
+
+  <div class="card">
+    <label>Alchemy API Key</label>
+    <input type="password" id="apiKey" placeholder="Paste Alchemy API key..." autocomplete="off" />
+    <label>Alamat Wallet (Base)</label>
+    <input type="text" id="wallet" placeholder="0x..." />
+    <div class="frow">
+      <div>
+        <label>Min Likuiditas (USD)</label>
+        <input type="number" id="minLiq" value="100" min="0" />
+      </div>
+      <div>
+        <label>Delay antar batch (ms)</label>
+        <input type="number" id="delay" value="400" min="200" max="3000" />
+      </div>
+    </div>
+    <button class="scan-btn" id="scanBtn" onclick="startScan()">Scan Wallet</button>
+  </div>
+
+  <div id="msgBox" class="msg"></div>
+
+  <div id="progArea" class="prog-area">
+    <div class="prog-bg"><div class="prog-fill" id="pf" style="width:0%"></div></div>
+    <div class="prog-txt" id="pt">Memulai...</div>
+  </div>
+
+  <div id="statsGrid" class="stats">
+    <div class="sc"><div class="sl">Total Token Hold</div><div class="sv" id="sTot">&#8212;</div></div>
+    <div class="sc"><div class="sl">Ada Likuiditas</div><div class="sv" id="sLiq" style="color:var(--green)">&#8212;</div></div>
+    <div class="sc"><div class="sl">Total Nilai</div><div class="sv" id="sVal" style="color:#a5a0ff">&#8212;</div></div>
+    <div class="sc"><div class="sl">Total Likuiditas</div><div class="sv" id="sTotLiq" style="color:var(--warn)">&#8212;</div></div>
+  </div>
+
+  <div id="ctrlArea" class="ctrl">
+    <div class="ctrls">
+      <input type="text" id="srch" placeholder="Cari nama / simbol / kontrak..." oninput="applyF()" />
+      <select id="srt" onchange="applyF()">
+        <option value="val_d">Nilai terbesar</option>
+        <option value="val_a">Nilai terkecil</option>
+        <option value="liq_d">Likuiditas terbesar</option>
+        <option value="liq_a">Likuiditas terkecil</option>
+        <option value="vol_d">Volume 24h terbesar</option>
+        <option value="nm_a">Nama A-Z</option>
+      </select>
+      <button class="exp-btn" onclick="exportCSV()">Export CSV</button>
+      <span class="rc" id="rc"></span>
+    </div>
+  </div>
+
+  <div id="tblArea"></div>
+</div>
+
+<script>
+var allT=[],filtT=[],page=1;
+var PS=30;
+
+function setP(p,t){document.getElementById('pf').style.width=p+'%';document.getElementById('pt').textContent=t}
+function showMsg(h,t){var e=document.getElementById('msgBox');e.className='msg '+(t||'er');e.innerHTML=h;e.style.display=h?'block':'none'}
+function fmt(n){
+  if(!n||isNaN(n))return'&#8212;';
+  if(n>=1e9)return'$'+(n/1e9).toFixed(2)+'B';
+  if(n>=1e6)return'$'+(n/1e6).toFixed(2)+'M';
+  if(n>=1e3)return'$'+(n/1e3).toFixed(2)+'K';
+  if(n>=1)return'$'+n.toFixed(2);
+  if(n>=0.000001)return'$'+n.toFixed(6);
+  return'$'+n.toExponential(2);
+}
+function fmtB(b){
+  if(b>=1e9)return(b/1e9).toFixed(2)+'B';
+  if(b>=1e6)return(b/1e6).toFixed(2)+'M';
+  if(b>=1e3)return b.toLocaleString('id-ID',{maximumFractionDigits:2});
+  if(b>=1)return b.toFixed(4);
+  return b.toExponential(2);
+}
+function short(a){return a?a.slice(0,6)+'...'+a.slice(-4):'--'}
+function badge(l){
+  if(!l)return'';
+  if(l>=50000)return'<span class="badge bhi">Tinggi</span>';
+  if(l>=5000)return'<span class="badge bmd">Sedang</span>';
+  return'<span class="badge blo">Rendah</span>';
+}
+function sleep(ms){return new Promise(function(r){setTimeout(r,ms)})}
+
+async function getTokens(wallet,key){
+  var tokens=[],pageKey=null;
+  do{
+    var params=pageKey?[wallet,{pageKey:pageKey}]:[wallet,{omitZeroBalances:true}];
+    var r=await fetch('https://base-mainnet.g.alchemy.com/v2/'+key,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({jsonrpc:'2.0',id:1,method:'alchemy_getTokenBalances',params:params})
+    });
+    if(!r.ok)throw new Error('Alchemy HTTP '+r.status+' - cek API key');
+    var d=await r.json();
+    if(d.error)throw new Error(d.error.message||'Alchemy error');
+    var res=d.result||{};
+    (res.tokenBalances||[]).forEach(function(b){
+      try{if(b.tokenBalance&&BigInt(b.tokenBalance)>0n)tokens.push(b)}catch(e){}
+    });
+    pageKey=res.pageKey||null;
+  }while(pageKey);
+  return tokens;
+}
+
+async function getMeta(contract,key){
+  try{
+    var r=await fetch('https://base-mainnet.g.alchemy.com/v2/'+key,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({jsonrpc:'2.0',id:1,method:'alchemy_getTokenMetadata',params:[contract]})
+    });
+    var d=await r.json();
+    return d.result||{};
+  }catch(e){return{}}
+}
+
+async function checkGecko(contract){
+  try{
+    var r=await fetch('https://api.geckoterminal.com/api/v2/networks/base/tokens/'+contract+'/pools?page=1',{
+      headers:{'Accept':'application/json;version=20230302'}
+    });
+    if(!r.ok)return null;
+    var d=await r.json();
+    if(!d.data||d.data.length===0)return null;
+    var best=null,bestLiq=0;
+    for(var i=0;i<d.data.length;i++){
+      var p=d.data[i];
+      var liq=parseFloat((p.attributes&&p.attributes.reserve_in_usd)||0);
+      if(liq>bestLiq){bestLiq=liq;best=p}
+    }
+    if(!best||bestLiq<1)return null;
+    var a=best.attributes||{};
+    return{
+      price:parseFloat(a.base_token_price_usd||0),
+      liquidity:bestLiq,
+      volume24h:parseFloat((a.volume_usd&&a.volume_usd.h24)||0),
+      priceChange24h:parseFloat((a.price_change_percentage&&a.price_change_percentage.h24)||0),
+      dexId:(best.relationships&&best.relationships.dex&&best.relationships.dex.data&&best.relationships.dex.data.id)||'',
+      pairAddr:a.address||''
+    };
+  }catch(e){return null}
+}
+
+async function startScan(){
+  var key=document.getElementById('apiKey').value.trim();
+  var wallet=document.getElementById('wallet').value.trim();
+  var minLiq=parseFloat(document.getElementById('minLiq').value)||0;
+  var delay=parseInt(document.getElementById('delay').value)||400;
+
+  if(!key){showMsg('Masukkan Alchemy API key terlebih dahulu.');return}
+  if(!wallet||wallet.indexOf('0x')!==0){showMsg('Alamat wallet tidak valid (harus mulai dengan 0x).');return}
+
+  showMsg('');
+  allT=[];filtT=[];page=1;
+  document.getElementById('statsGrid').style.display='none';
+  document.getElementById('ctrlArea').style.display='none';
+  document.getElementById('tblArea').innerHTML='';
+  document.getElementById('progArea').style.display='block';
+  document.getElementById('scanBtn').disabled=true;
+  document.getElementById('scanBtn').textContent='Scanning...';
+
+  try{
+    setP(3,'Mengambil token dari wallet via Alchemy...');
+    var raw=await getTokens(wallet,key);
+    var total=raw.length;
+    if(total===0){showMsg('Tidak ada token ERC-20 ditemukan di wallet ini.');throw new Error('empty')}
+
+    document.getElementById('sTot').textContent=total.toLocaleString();
+    document.getElementById('sLiq').textContent='0';
+    document.getElementById('sVal').textContent='$0';
+    document.getElementById('sTotLiq').textContent='$0';
+    document.getElementById('statsGrid').style.display='grid';
+    setP(8,'Ditemukan '+total+' token. Mengecek likuiditas via GeckoTerminal...');
+
+    var done=0,found=0,totalVal=0,totalLiq=0;
+    var BATCH=3;
+
+    for(var i=0;i<raw.length;i+=BATCH){
+      var batch=raw.slice(i,i+BATCH);
+      await Promise.all(batch.map(async function(tok){
+        var contract=tok.contractAddress.toLowerCase();
+        var results=await Promise.all([
+          getMeta(contract,key),
+          checkGecko(contract)
+        ]);
+        var meta=results[0],gecko=results[1];
+        done++;
+        var pct=8+Math.floor((done/total)*90);
+        setP(pct,'Memeriksa '+done.toLocaleString()+' / '+total.toLocaleString()+' token... ('+found+' ada likuiditas)');
+        if(gecko&&gecko.liquidity>=minLiq){
+          var dec=meta.decimals||18;
+          var bal=0;
+          try{bal=Number(BigInt(tok.tokenBalance))/Math.pow(10,dec)}catch(e){}
+          var val=bal*gecko.price;
+          totalVal+=val;totalLiq+=gecko.liquidity;found++;
+          allT.push({contract:contract,name:meta.name||'Unknown',symbol:meta.symbol||'?',balance:bal,price:gecko.price,liquidity:gecko.liquidity,volume24h:gecko.volume24h,priceChange24h:gecko.priceChange24h,dexId:gecko.dexId,pairAddr:gecko.pairAddr,value:val});
+          document.getElementById('sLiq').textContent=found.toLocaleString();
+          document.getElementById('sVal').textContent=fmt(totalVal);
+          document.getElementById('sTotLiq').textContent=fmt(totalLiq);
+        }
+      }));
+      await sleep(delay);
+    }
+
+    setP(100,'Selesai! '+found+' token dengan likuiditas dari '+total+' token.');
+    if(allT.length===0){
+      showMsg('Tidak ada token dengan likuiditas >= $'+minLiq+'. Coba turunkan nilai minimum.');
+    }else{
+      showMsg('Ditemukan <strong>'+allT.length+' token</strong> dengan likuiditas dari '+total+' token total.','ok');
+      document.getElementById('ctrlArea').style.display='block';
+      applyF();
+    }
+  }catch(e){
+    if(e.message!=='empty')showMsg('Error: '+(e.message||'Terjadi kesalahan. Cek API key dan alamat wallet.'));
+  }
+  document.getElementById('progArea').style.display='none';
+  document.getElementById('scanBtn').disabled=false;
+  document.getElementById('scanBtn').textContent='Scan Wallet';
+}
+
+function applyF(){
+  var s=document.getElementById('srch').value.toLowerCase();
+  var srt=document.getElementById('srt').value;
+  filtT=allT.filter(function(t){
+    return !s||(t.name||'').toLowerCase().indexOf(s)>=0||(t.symbol||'').toLowerCase().indexOf(s)>=0||(t.contract||'').toLowerCase().indexOf(s)>=0;
+  });
+  if(srt==='val_d')filtT.sort(function(a,b){return b.value-a.value});
+  else if(srt==='val_a')filtT.sort(function(a,b){return a.value-b.value});
+  else if(srt==='liq_d')filtT.sort(function(a,b){return b.liquidity-a.liquidity});
+  else if(srt==='liq_a')filtT.sort(function(a,b){return a.liquidity-b.liquidity});
+  else if(srt==='vol_d')filtT.sort(function(a,b){return b.volume24h-a.volume24h});
+  else if(srt==='nm_a')filtT.sort(function(a,b){return(a.name||'').localeCompare(b.name||'')});
+  page=1;render();
+}
+
+function render(){
+  var area=document.getElementById('tblArea');
+  document.getElementById('rc').textContent=filtT.length.toLocaleString()+' token';
+  if(filtT.length===0){area.innerHTML='<div class="empty">Tidak ada token yang cocok.</div>';return}
+  var s=(page-1)*PS,e=Math.min(s+PS,filtT.length),tp=Math.ceil(filtT.length/PS);
+  var rows=filtT.slice(s,e).map(function(t,i){
+    var no=s+i+1;
+    var pc=t.priceChange24h||0;
+    var pcH=pc>0?'<div class="up">&#9650; '+pc.toFixed(2)+'%</div>':pc<0?'<div class="dn">&#9660; '+Math.abs(pc).toFixed(2)+'%</div>':'<div style="font-size:10px;color:#555570">0%</div>';
+    var gUrl='https://www.geckoterminal.com/base/pools/'+t.pairAddr;
+    var dexCell=t.pairAddr?'<a href="'+gUrl+'" target="_blank" style="color:#6c63ff;font-size:10px;font-family:monospace;text-decoration:none">'+(t.dexId||'pool')+'</a>':'<span style="font-size:10px;color:#555570">'+(t.dexId||'-')+'</span>';
+    return'<tr><td style="color:#555570;font-size:11px;width:36px">'+no+'</td><td><div class="tn">'+t.name+'</div><div class="ts">'+t.symbol+'</div></td><td class="ms">'+fmtB(t.balance)+'</td><td><div class="ms">'+fmt(t.price)+'</div>'+pcH+'</td><td><div class="vl">'+fmt(t.value)+'</div></td><td><div class="ms">'+fmt(t.liquidity)+'</div>'+badge(t.liquidity)+'</td><td class="ms" style="color:#555570">'+fmt(t.volume24h)+'</td><td><div class="cc"><span class="ms" title="'+t.contract+'">'+short(t.contract)+'</span><button class="cpb" onclick="cp(\''+t.contract+'\',this)">copy</button></div></td><td>'+dexCell+'</td></tr>';
+  }).join('');
+  area.innerHTML='<div class="twrap"><table><thead><tr><th>#</th><th>Token</th><th>Balance</th><th>Harga</th><th>Nilai (USD)</th><th>Likuiditas</th><th>Vol 24h</th><th>Kontrak</th><th>DEX</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="pg"><button class="pgb" onclick="goP('+(page-1)+')" '+(page<=1?'disabled':'')+'>&#8592; Prev</button><span class="pgi">Hal '+page+' / '+tp+' &middot; '+filtT.length.toLocaleString()+' token</span><button class="pgb" onclick="goP('+(page+1)+')" '+(page>=tp?'disabled':'')+'>Next &#8594;</button></div>';
+}
+
+function goP(p){var tp=Math.ceil(filtT.length/PS);if(p<1||p>tp)return;page=p;render();window.scrollTo({top:0,behavior:'smooth'})}
+
+function cp(addr,btn){
+  var fb=function(){var e=document.createElement('textarea');e.value=addr;e.style.cssText='position:fixed;opacity:0';document.body.appendChild(e);e.select();document.execCommand('copy');document.body.removeChild(e)};
+  var p=navigator.clipboard?navigator.clipboard.writeText(addr).catch(fb):Promise.resolve(fb());
+  p.finally?p.finally(function(){btn.textContent='copied!';btn.classList.add('ok');setTimeout(function(){btn.textContent='copy';btn.classList.remove('ok')},1500)}):setTimeout(function(){btn.textContent='copied!';btn.classList.add('ok');setTimeout(function(){btn.textContent='copy';btn.classList.remove('ok')},1500)},0);
+}
+
+function exportCSV(){
+  if(!filtT.length)return;
+  var h=['No','Nama','Simbol','Balance','Harga (USD)','Nilai (USD)','Likuiditas (USD)','Vol 24h (USD)','Change 24h','Kontrak','DEX','Pair Address'];
+  var rows=filtT.map(function(t,i){return[i+1,t.name,t.symbol,t.balance,t.price,t.value.toFixed(4),t.liquidity.toFixed(2),t.volume24h.toFixed(2),(t.priceChange24h||0).toFixed(2)+'%',t.contract,t.dexId||'',t.pairAddr||'']});
+  var csv=[h].concat(rows).map(function(r){return r.map(function(v){return'"'+String(v).replace(/"/g,'""')+'"'}).join(',')}).join('\n');
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
+  a.download='wallet_base_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+}
+</script>
+</body>
+</html>
