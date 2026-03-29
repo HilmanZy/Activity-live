@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Base Wallet Liquidity Scanner</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a0f;
+  --bg2: #111118;
+  --bg3: #1a1a24;
+  --border: rgba(255,255,255,0.08);
+  --border2: rgba(255,255,255,0.14);
+  --text: #f0f0f8;
+  --text2: #8888aa;
+  --text3: #555570;
+  --accent: #6c63ff;
+  --accent2: #4ade80;
+  --warn: #fbbf24;
+  --danger: #f87171;
+  --mono: 'DM Mono', monospace;
+  --sans: 'Syne', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
+.container { max-width: 1200px; margin: 0 auto; padding: 32px 20px; }
+.header { margin-bottom: 32px; }
+.header h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 4px; }
+.header p { font-size: 13px; color: var(--text2); }
+.header .chain-badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(108,99,255,0.15); border: 1px solid rgba(108,99,255,0.3); border-radius: 999px; padding: 3px 10px; font-size: 11px; font-weight: 500; color: #a5a0ff; margin-bottom: 12px; }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent2); animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+.setup-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 20px; }
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 11px; font-weight: 500; color: var(--text2); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+.field input { width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-family: var(--mono); font-size: 13px; color: var(--text); outline: none; transition: border 0.2s; }
+.field input:focus { border-color: rgba(108,99,255,0.5); }
+.field input::placeholder { color: var(--text3); }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.scan-btn { width: 100%; padding: 12px; background: var(--accent); border: none; border-radius: 8px; color: #fff; font-family: var(--sans); font-size: 14px; font-weight: 700; cursor: pointer; transition: opacity 0.2s, transform 0.1s; letter-spacing: 0.3px; }
+.scan-btn:hover { opacity: 0.9; }
+.scan-btn:active { transform: scale(0.99); }
+.scan-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+.progress-area { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 20px; display: none; }
+.progress-bar-bg { height: 3px; background: var(--bg3); border-radius: 2px; overflow: hidden; margin-bottom: 10px; }
+.progress-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.4s ease; }
+.progress-text { font-size: 12px; color: var(--text2); font-family: var(--mono); }
+
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; display: none; }
+.stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+.stat-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
+.stat-value { font-size: 22px; font-weight: 700; color: var(--text); }
+.stat-value.green { color: var(--accent2); }
+.stat-value.purple { color: #a5a0ff; }
+
+.msg { border-radius: 10px; padding: 12px 16px; font-size: 13px; margin-bottom: 16px; display: none; }
+.msg.ok { background: rgba(74,222,128,0.1); border: 1px solid rgba(74,222,128,0.2); color: var(--accent2); }
+.msg.er { background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.2); color: var(--danger); }
+
+.controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+.controls input[type=text] { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 12px; color: var(--text); font-family: var(--sans); outline: none; width: 220px; }
+.controls input[type=text]:focus { border-color: rgba(108,99,255,0.4); }
+.controls input[type=text]::placeholder { color: var(--text3); }
+.controls select { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 12px; color: var(--text); font-family: var(--sans); outline: none; cursor: pointer; }
+.controls select option { background: var(--bg2); }
+.exp-btn { padding: 8px 14px; background: transparent; border: 1px solid var(--border2); border-radius: 8px; color: var(--text2); font-size: 12px; cursor: pointer; font-family: var(--sans); transition: all 0.2s; }
+.exp-btn:hover { border-color: var(--accent); color: var(--accent); }
+.result-count { font-size: 12px; color: var(--text3); margin-left: auto; }
+
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 800px; }
+thead th { font-size: 10px; font-weight: 500; color: var(--text3); text-transform: uppercase; letter-spacing: 0.7px; text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+tbody td { padding: 11px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: middle; }
+tbody tr:hover td { background: rgba(255,255,255,0.02); }
+tbody tr:last-child td { border-bottom: none; }
+
+.token-name { font-weight: 500; font-size: 13px; color: var(--text); }
+.token-sym { font-size: 10px; color: var(--text3); margin-top: 1px; }
+.mono-sm { font-family: var(--mono); font-size: 11px; color: var(--text2); }
+.val { font-weight: 500; color: var(--text); }
+.pc-up { color: var(--accent2); font-size: 10px; }
+.pc-dn { color: var(--danger); font-size: 10px; }
+.badge { display: inline-block; font-size: 10px; padding: 2px 8px; border-radius: 999px; font-weight: 500; margin-top: 2px; }
+.b-hi { background: rgba(74,222,128,0.12); color: #4ade80; border: 1px solid rgba(74,222,128,0.2); }
+.b-md { background: rgba(251,191,36,0.12); color: #fbbf24; border: 1px solid rgba(251,191,36,0.2); }
+.b-lo { background: rgba(248,113,113,0.12); color: #f87171; border: 1px solid rgba(248,113,113,0.2); }
+.no-col { color: var(--text3); font-size: 11px; width: 30px; }
+.contract-cell { display: flex; align-items: center; gap: 6px; }
+.cp-btn { padding: 3px 8px; background: transparent; border: 1px solid var(--border); border-radius: 4px; color: var(--text3); font-size: 10px; cursor: pointer; font-family: var(--mono); transition: all 0.15s; white-space: nowrap; }
+.cp-btn:hover { border-color: var(--accent); color: var(--accent); }
+.cp-btn.ok { border-color: var(--accent2); color: var(--accent2); }
+.dex-tag { font-size: 10px; color: var(--text3); font-family: var(--mono); }
+
+.pagination { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+.pg-btn { padding: 6px 12px; background: transparent; border: 1px solid var(--border); border-radius: 6px; color: var(--text2); font-size: 12px; cursor: pointer; font-family: var(--sans); transition: all 0.2s; }
+.pg-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.pg-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.pg-info { font-size: 12px; color: var(--text3); }
+
+.hint-box { background: rgba(108,99,255,0.07); border: 1px solid rgba(108,99,255,0.15); border-radius: 10px; padding: 12px 16px; font-size: 12px; color: #9994cc; margin-bottom: 14px; line-height: 1.6; }
+.hint-box strong { color: #a5a0ff; }
+
+@media(max-width:600px) {
+  .stats-grid { grid-template-columns: repeat(2,1fr); }
+  .field-row { grid-template-columns: 1fr; }
+  .controls input[type=text] { width: 100%; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="chain-badge"><span class="dot"></span> Base Chain</div>
+    <h1>Wallet Liquidity Scanner</h1>
+    <p>Scan semua token di wallet Base Anda, filter yang ada likuiditas, urutkan dari nilai terbesar</p>
+  </div>
+
+  <div class="hint-box">
+    <strong>Cara dapat Alchemy API Key (gratis):</strong> Daftar di <strong>alchemy.com</strong> &rarr; Create App &rarr; pilih chain <strong>Base</strong> &rarr; copy API Key &rarr; paste di bawah
+  </div>
+
+  <div class="setup-card">
+    <div class="field">
+      <label>Alchemy API Key</label>
+      <input type="password" id="apiKey" placeholder="Paste Alchemy API key Anda di sini..." autocomplete="off" />
+    </div>
+    <div class="field">
+      <label>Alamat Wallet</label>
+      <input type="text" id="wallet" placeholder="0x..." />
+    </div>
+    <div class="field-row">
+      <div class="field" style="margin-bottom:0">
+        <label>Min Likuiditas (USD)</label>
+        <input type="number" id="minLiq" value="1" min="0" placeholder="1" />
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label>Batch Size (token/request)</label>
+        <input type="number" id="batchSize" value="5" min="1" max="10" placeholder="5" />
+      </div>
+    </div>
+    <div style="margin-top:16px">
+      <button class="scan-btn" id="scanBtn" onclick="startScan()">Scan Wallet</button>
+    </div>
+  </div>
+
+  <div id="msgBox" class="msg"></div>
+  <div id="progArea" class="progress-area">
+    <div class="progress-bar-bg"><div class="progress-bar-fill" id="pf" style="width:0%"></div></div>
+    <div class="progress-text" id="pt">Memulai scan...</div>
+  </div>
+
+  <div id="statsGrid" class="stats-grid">
+    <div class="stat-card"><div class="stat-label">Total Token Hold</div><div class="stat-value" id="sTot">—</div></div>
+    <div class="stat-card"><div class="stat-label">Ada Likuiditas</div><div class="stat-value green" id="sLiq">—</div></div>
+    <div class="stat-card"><div class="stat-label">Total Nilai</div><div class="stat-value purple" id="sVal">—</div></div>
+    <div class="stat-card"><div class="stat-label">Total Likuiditas</div><div class="stat-value" id="sTotLiq">—</div></div>
+  </div>
+
+  <div id="ctrlArea" style="display:none">
+    <div class="controls">
+      <input type="text" id="srch" placeholder="Cari nama / simbol / kontrak..." oninput="applyF()" />
+      <select id="srt" onchange="applyF()">
+        <option value="val_d">Nilai terbesar</option>
+        <option value="val_a">Nilai terkecil</option>
+        <option value="liq_d">Likuiditas terbesar</option>
+        <option value="liq_a">Likuiditas terkecil</option>
+        <option value="nm_a">Nama A-Z</option>
+        <option value="vol_d">Volume 24h terbesar</option>
+      </select>
+      <button class="exp-btn" onclick="exportCSV()">Export CSV</button>
+      <span class="result-count" id="resCount"></span>
+    </div>
+  </div>
+
+  <div id="tblArea"></div>
+
+</div>
+
+<script>
+let allT = [], filtT = [], page = 1;
+const PS = 30;
+
+function setP(pct, txt) {
+  document.getElementById('pf').style.width = pct + '%';
+  document.getElementById('pt').textContent = txt;
+}
+
+function showMsg(html, type) {
+  const el = document.getElementById('msgBox');
+  el.className = 'msg ' + (type || 'er');
+  el.innerHTML = html;
+  el.style.display = html ? 'block' : 'none';
+}
+
+function fmt(n) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  if (n >= 1e9) return '$' + (n / 1e9).toFixed(2) + 'B';
+  if (n >= 1e6) return '$' + (n / 1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return '$' + (n / 1e3).toFixed(2) + 'K';
+  if (n >= 1) return '$' + n.toFixed(2);
+  if (n >= 0.0001) return '$' + n.toFixed(4);
+  if (n > 0) return '$' + n.toExponential(2);
+  return '$0';
+}
+
+function short(a) { return a ? a.slice(0, 6) + '...' + a.slice(-4) : '—'; }
+
+function badge(l) {
+  if (!l) return '';
+  if (l >= 50000) return '<span class="badge b-hi">Tinggi</span>';
+  if (l >= 5000) return '<span class="badge b-md">Sedang</span>';
+  return '<span class="badge b-lo">Rendah</span>';
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function getTokens(wallet, key) {
+  let tokens = [], pageKey = null;
+  do {
+    const body = {
+      jsonrpc: '2.0', id: 1,
+      method: 'alchemy_getTokenBalances',
+      params: [wallet, pageKey ? { pageKey } : { omitZeroBalances: true }]
+    };
+    const r = await fetch(`https://base-mainnet.g.alchemy.com/v2/${key}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error.message || 'Alchemy RPC error');
+    const res = d.result || {};
+    const bal = res.tokenBalances || [];
+    tokens = tokens.concat(bal.filter(b =>
+      b.tokenBalance &&
+      b.tokenBalance !== '0x0000000000000000000000000000000000000000000000000000000000000000' &&
+      BigInt(b.tokenBalance) > 0n
+    ));
+    pageKey = res.pageKey || null;
+  } while (pageKey);
+  return tokens;
+}
+
+async function getTokenMeta(contract, key) {
+  const r = await fetch(`https://base-mainnet.g.alchemy.com/v2/${key}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'alchemy_getTokenMetadata', params: [contract] })
+  });
+  const d = await r.json();
+  return d.result || {};
+}
+
+async function checkDex(contract) {
+  try {
+    const r = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${contract}`);
+    const d = await r.json();
+    if (!d.pairs || d.pairs.length === 0) return null;
+    const basePairs = d.pairs.filter(p => p.chainId === 'base');
+    const pool = basePairs.length > 0 ? basePairs : d.pairs;
+    const best = pool.sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))[0];
+    if (!best.liquidity?.usd || best.liquidity.usd < 1) return null;
+    return {
+      price: parseFloat(best.priceUsd || 0),
+      liquidity: best.liquidity.usd || 0,
+      volume24h: best.volume?.h24 || 0,
+      priceChange24h: best.priceChange?.h24 || 0,
+      dexId: best.dexId || '',
+      pairAddress: best.pairAddress || '',
+      url: best.url || '',
+    };
+  } catch { return null; }
+}
+
+async function startScan() {
+  const key = document.getElementById('apiKey').value.trim();
+  const wallet = document.getElementById('wallet').value.trim();
+  const minLiq = parseFloat(document.getElementById('minLiq').value) || 1;
+  const batchSize = parseInt(document.getElementById('batchSize').value) || 5;
+
+  if (!key) { showMsg('Masukkan Alchemy API key terlebih dahulu.'); return; }
+  if (!wallet || !wallet.startsWith('0x')) { showMsg('Masukkan alamat wallet yang valid (0x...).'); return; }
+
+  showMsg('', '');
+  allT = []; filtT = []; page = 1;
+  document.getElementById('statsGrid').style.display = 'none';
+  document.getElementById('ctrlArea').style.display = 'none';
+  document.getElementById('tblArea').innerHTML = '';
+  document.getElementById('progArea').style.display = 'block';
+  document.getElementById('scanBtn').disabled = true;
+  document.getElementById('scanBtn').textContent = 'Scanning...';
+
+  try {
+    setP(3, 'Mengambil daftar token dari wallet...');
+    const raw = await getTokens(wallet, key);
+    const total = raw.length;
+
+    if (total === 0) {
+      showMsg('Tidak ada token ERC-20 ditemukan di wallet ini.');
+      throw new Error('empty');
+    }
+
+    document.getElementById('sTot').textContent = total.toLocaleString();
+    document.getElementById('sLiq').textContent = '0';
+    document.getElementById('sVal').textContent = '$0';
+    document.getElementById('sTotLiq').textContent = '$0';
+    document.getElementById('statsGrid').style.display = 'grid';
+
+    setP(8, `Ditemukan ${total} token. Mulai cek likuiditas via DexScreener...`);
+
+    let done = 0, found = 0, totalVal = 0, totalLiq = 0;
+
+    for (let i = 0; i < raw.length; i += batchSize) {
+      const batch = raw.slice(i, i + batchSize);
+      await Promise.all(batch.map(async (tok) => {
+        const contract = tok.contractAddress;
+        const [meta, dex] = await Promise.all([
+          getTokenMeta(contract, key).catch(() => ({})),
+          checkDex(contract).catch(() => null)
+        ]);
+        done++;
+        const pct = 8 + Math.floor((done / total) * 90);
+        setP(pct, `Memeriksa ${done.toLocaleString()} / ${total.toLocaleString()} token... (${found} ada likuiditas)`);
+
+        if (dex && dex.liquidity >= minLiq) {
+          const decimals = meta.decimals || 18;
+          const rawBal = BigInt(tok.tokenBalance || '0');
+          const balance = Number(rawBal) / Math.pow(10, decimals);
+          const value = balance * dex.price;
+          totalVal += value;
+          totalLiq += dex.liquidity;
+          found++;
+          allT.push({ contract, name: meta.name || 'Unknown', symbol: meta.symbol || '?', balance, decimals, ...dex, value });
+          document.getElementById('sLiq').textContent = found.toLocaleString();
+          document.getElementById('sVal').textContent = fmt(totalVal);
+          document.getElementById('sTotLiq').textContent = fmt(totalLiq);
+        }
+      }));
+      await sleep(120);
+    }
+
+    setP(100, `Selesai! ${found} token dengan likuiditas ditemukan dari ${total} token.`);
+
+    if (allT.length === 0) {
+      showMsg(`Tidak ada token dengan likuiditas ≥ $${minLiq} ditemukan.`);
+    } else {
+      showMsg(`Ditemukan <strong>${allT.length} token</strong> dengan likuiditas dari ${total} token total.`, 'ok');
+      document.getElementById('ctrlArea').style.display = 'block';
+      applyF();
+    }
+  } catch (e) {
+    if (e.message !== 'empty') showMsg('Error: ' + (e.message || 'Terjadi kesalahan. Cek API key dan wallet address.'));
+  }
+
+  document.getElementById('progArea').style.display = 'none';
+  document.getElementById('scanBtn').disabled = false;
+  document.getElementById('scanBtn').textContent = 'Scan Wallet';
+}
+
+function applyF() {
+  const s = document.getElementById('srch').value.toLowerCase();
+  const srt = document.getElementById('srt').value;
+  filtT = allT.filter(t =>
+    !s ||
+    (t.name || '').toLowerCase().includes(s) ||
+    (t.symbol || '').toLowerCase().includes(s) ||
+    (t.contract || '').toLowerCase().includes(s)
+  );
+  if (srt === 'val_d') filtT.sort((a, b) => b.value - a.value);
+  else if (srt === 'val_a') filtT.sort((a, b) => a.value - b.value);
+  else if (srt === 'liq_d') filtT.sort((a, b) => b.liquidity - a.liquidity);
+  else if (srt === 'liq_a') filtT.sort((a, b) => a.liquidity - b.liquidity);
+  else if (srt === 'nm_a') filtT.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  else if (srt === 'vol_d') filtT.sort((a, b) => b.volume24h - a.volume24h);
+  page = 1;
+  render();
+}
+
+function render() {
+  const area = document.getElementById('tblArea');
+  document.getElementById('resCount').textContent = filtT.length + ' token ditampilkan';
+
+  if (filtT.length === 0) {
+    area.innerHTML = '<div style="text-align:center;padding:3rem;color:#555570;font-size:13px">Tidak ada token yang cocok dengan filter.</div>';
+    return;
+  }
+
+  const s = (page - 1) * PS, e = Math.min(s + PS, filtT.length), tp = Math.ceil(filtT.length / PS);
+
+  const rows = filtT.slice(s, e).map((t, i) => {
+    const no = s + i + 1;
+    const pc = t.priceChange24h || 0;
+    const pcHtml = pc > 0
+      ? `<div class="pc-up">▲ ${pc.toFixed(2)}%</div>`
+      : pc < 0 ? `<div class="pc-dn">▼ ${Math.abs(pc).toFixed(2)}%</div>`
+      : `<div style="font-size:10px;color:#555570">0%</div>`;
+    const balFmt = t.balance >= 1e9 ? (t.balance / 1e9).toFixed(2) + 'B'
+      : t.balance >= 1e6 ? (t.balance / 1e6).toFixed(2) + 'M'
+      : t.balance >= 1e3 ? t.balance.toLocaleString('id-ID', { maximumFractionDigits: 2 })
+      : t.balance.toFixed(4);
+    const dexLink = t.url ? `<a href="${t.url}" target="_blank" style="color:#6c63ff;text-decoration:none;font-size:10px">${t.dexId || 'dex'}</a>` : `<span class="dex-tag">${t.dexId || '—'}</span>`;
+    return `<tr>
+      <td class="no-col">${no}</td>
+      <td><div class="token-name">${t.name}</div><div class="token-sym">${t.symbol}</div></td>
+      <td class="mono-sm">${balFmt}</td>
+      <td><div class="mono-sm">${fmt(t.price)}</div>${pcHtml}</td>
+      <td><div class="val">${fmt(t.value)}</div></td>
+      <td><div class="mono-sm">${fmt(t.liquidity)}</div>${badge(t.liquidity)}</td>
+      <td class="mono-sm" style="color:#555570">${fmt(t.volume24h)}</td>
+      <td>
+        <div class="contract-cell">
+          <span class="mono-sm" title="${t.contract}">${short(t.contract)}</span>
+          <button class="cp-btn" onclick="cp('${t.contract}', this)">copy</button>
+        </div>
+      </td>
+      <td>${dexLink}</td>
+    </tr>`;
+  }).join('');
+
+  area.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>#</th><th>Token</th><th>Balance</th><th>Harga</th>
+          <th>Nilai (USD)</th><th>Likuiditas</th><th>Vol 24h</th>
+          <th>Kontrak</th><th>DEX</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div class="pagination">
+      <button class="pg-btn" onclick="goP(${page - 1})" ${page <= 1 ? 'disabled' : ''}>← Prev</button>
+      <span class="pg-info">Halaman ${page} / ${tp} &nbsp;·&nbsp; ${filtT.length} token</span>
+      <button class="pg-btn" onclick="goP(${page + 1})" ${page >= tp ? 'disabled' : ''}>Next →</button>
+    </div>`;
+}
+
+function goP(p) {
+  const tp = Math.ceil(filtT.length / PS);
+  if (p < 1 || p > tp) return;
+  page = p;
+  render();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function cp(addr, btn) {
+  const do_copy = () => {
+    try {
+      const el = document.createElement('textarea');
+      el.value = addr; el.style.position = 'fixed'; el.style.opacity = '0';
+      document.body.appendChild(el); el.select(); document.execCommand('copy');
+      document.body.removeChild(el);
+    } catch(e) {}
+  };
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(addr).catch(do_copy);
+  } else { do_copy(); }
+  btn.textContent = 'copied!'; btn.classList.add('ok');
+  setTimeout(() => { btn.textContent = 'copy'; btn.classList.remove('ok'); }, 1500);
+}
+
+function exportCSV() {
+  if (!filtT.length) return;
+  const hdr = ['No', 'Nama', 'Simbol', 'Balance', 'Harga (USD)', 'Nilai (USD)', 'Likuiditas (USD)', 'Vol 24h (USD)', 'Price Change 24h', 'Kontrak', 'DEX', 'Pair Address'];
+  const rows = filtT.map((t, i) => [
+    i + 1, t.name, t.symbol,
+    t.balance, t.price.toFixed(8),
+    t.value.toFixed(4), t.liquidity.toFixed(2),
+    t.volume24h.toFixed(2), (t.priceChange24h || 0).toFixed(2) + '%',
+    t.contract, t.dexId || '', t.pairAddress || ''
+  ]);
+  const csv = [hdr, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'wallet_base_liquidity_' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click();
+}
+</script>
+</body>
+</html>
